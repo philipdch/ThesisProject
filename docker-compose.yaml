@@ -1,0 +1,223 @@
+version: '3.9'
+services:
+  hmi1:
+    build: 
+      context: .
+      dockerfile: ./docker/hmi/Dockerfile
+    container_name: hmi1
+    volumes:
+      - ./code/hmi:/code
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.110 
+
+  hmi2:
+    build: 
+      context: .
+      dockerfile: ./docker/hmi/Dockerfile
+    container_name: hmi2
+    volumes:
+      - ./code/hmi:/code
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.111
+
+  hmi3:
+    build: 
+      context: .
+      dockerfile: ./docker/hmi/Dockerfile
+    container_name: hmi3
+    volumes:
+      - ./code/hmi:/code
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.112
+
+  plc1:
+    build: 
+      context: .
+      dockerfile: ./docker/plc/Dockerfile
+    container_name: plc1
+    volumes:
+      - ./code/plc:/code
+    privileged: true
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.120
+    
+  plc2:
+    build: 
+      context: .
+      dockerfile: ./docker/plc/Dockerfile
+    container_name: plc2
+    volumes:
+      - ./code/plc:/code
+    privileged: true
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.121
+
+  plc3:
+    build: 
+      context: .
+      dockerfile: ./docker/plc/Dockerfile
+    container_name: plc3
+    volumes:
+      - ./code/plc:/code
+    privileged: true
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.122
+
+  plc4:
+    build: 
+      context: .
+      dockerfile: ./docker/plc/Dockerfile
+    container_name: plc4
+    volumes:
+      - ./code/plc:/code
+    privileged: true
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.123
+
+  plc5:
+    build: 
+      context: .
+      dockerfile: ./docker/plc/Dockerfile
+    container_name: plc5
+    volumes:
+      - ./code/plc:/code
+    privileged: true
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.124
+
+  wrapper_hmi1:
+    build: 
+      context: .
+      dockerfile: ./docker/wrapper/Dockerfile
+    container_name: wrapper_hmi1
+    volumes:
+      - ./code/wrapper:/code
+    privileged: true
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.10
+    environment:
+      CLIENT: "172.16.238.110"
+      WRAPPER-GROUP: "172.16.238.11, 172.16.238.12, 172.16.238.20, 172.16.238.21, 172.16.238.22, 172.16.238.23, 172.16.238.24"
+
+  wrapper_hmi2:
+    build: 
+      context: .
+      dockerfile: ./docker/wrapper/Dockerfile
+    container_name: wrapper_hmi2
+    volumes:
+      - ./code/wrapper:/code
+    privileged: true
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.11
+    environment:
+      CLIENT: "172.16.238.111"
+      WRAPPER-GROUP: "172.16.238.10, 172.16.238.12, 172.16.238.20, 172.16.238.21, 172.16.238.22, 172.16.238.23, 172.16.238.24"
+
+  wrapper_hmi3:
+    build: 
+      context: .
+      dockerfile: ./docker/wrapper/Dockerfile
+    container_name: wrapper_hmi3
+    volumes:
+      - ./code/wrapper:/code
+    privileged: true
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.12
+    environment:
+      CLIENT: "172.16.238.112"
+      WRAPPER-GROUP: "172.16.238.10, 172.16.238.11, 172.16.238.20, 172.16.238.21, 172.16.238.22, 172.16.238.23, 172.16.238.24"
+
+  wrapper_plc1:
+    build: 
+      context: .
+      dockerfile: ./docker/wrapper/Dockerfile
+    container_name: wrapper_plc1
+    volumes:
+      - ./code/wrapper:/code
+    privileged: true
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.20
+    environment:
+      CLIENT: "172.16.238.120"
+      WRAPPER-GROUP: "172.16.16.238.10, 172.16.238.11, 172.16.238.12, 172.16.238.21, 172.16.238.22, 172.16.238.23, 172.16.238.24"
+
+  wrapper_plc2:
+    build: 
+      context: .
+      dockerfile: ./docker/wrapper/Dockerfile
+    container_name: wrapper_plc2
+    volumes:
+      - ./code/wrapper:/code
+    privileged: true
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.21
+    environment:
+      CLIENT: "172.16.238.121"
+      WRAPPER-GROUP: "172.16.16.238.10, 172.16.238.11, 172.16.238.12, 172.16.238.20, 172.16.238.22, 172.16.238.23, 172.16.238.24"
+
+  wrapper_plc3:
+    build: 
+      context: .
+      dockerfile: ./docker/wrapper/Dockerfile
+    container_name: wrapper_plc3
+    volumes:
+      - ./code/wrapper:/code
+    privileged: true
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.22
+    environment:
+      CLIENT: "172.16.238.122"
+      WRAPPER-GROUP: "172.16.16.238.10, 172.16.238.11, 172.16.238.12, 172.16.238.20, 172.16.238.21, 172.16.238.23, 172.16.238.24"
+
+  wrapper_plc4:
+    build: 
+      context: .
+      dockerfile: ./docker/wrapper/Dockerfile
+    container_name: wrapper_plc4
+    volumes:
+      - ./code/wrapper:/code
+    privileged: true
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.23
+    environment:
+      CLIENT: "172.16.238.123"
+      WRAPPER-GROUP: "172.16.16.238.10, 172.16.238.11, 172.16.238.12, 172.16.238.20, 172.16.238.21, 172.16.238.22, 172.16.238.24"
+
+  wrapper_plc5:
+    build: 
+      context: .
+      dockerfile: ./docker/wrapper/Dockerfile
+    container_name: wrapper_plc5
+    volumes:
+      - ./code/wrapper:/code
+    privileged: true
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.24
+    environment:
+      CLIENT: "172.16.238.124"
+      WRAPPER-GROUP: "172.16.16.238.10, 172.16.238.11, 172.16.238.12, 172.16.238.20, 172.16.238.21, 172.16.238.22, 172.16.238.23"
+
+networks:
+  devnet:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.16.238.0/24
+    driver_opts:
+      com.docker.network.bridge.name: br_devnet

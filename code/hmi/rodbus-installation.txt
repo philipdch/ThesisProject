@@ -1,0 +1,7 @@
+This project relies on Rodbus, a rust Modbus client which can be found here:
+https://github.com/stepfunc/rodbus.git
+
+After cloning this repo, simply clone Robus into the current directory.
+When building the HMI container, docker will take care of building the rust application.
+
+The executable will be located inside the target/debug directory
