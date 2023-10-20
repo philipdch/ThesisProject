@@ -16,28 +16,35 @@ def proxy(client, group):
 
         if not packet.haslayer('IP'):
             return
+        
+        new_packet = packet['IP']
+        new_packet['IP'].payload = packet['IP'].payload
 
         if not packet.haslayer('TCP'):
-            return 
+            del new_packet['IP'].chksum
+            send(new_packet, verbose=False)
+            return
 
         payload = packet['TCP'].payload
         if payload:
-            sip = packet['IP']
-            dip = packet['IP']
+            sip = packet['IP'].src
+            dip = packet['IP'].dst
+
+            print("Packet received from " + str(sip) + " to " + str(dip))
 
             if sip == client:
                 # packet received from client. Wrap it and send it to wrapper's group
                 encrypted_payload = encrypt(bytes.fromhex(KEY), bytes.fromhex(INIT_VECTOR), bytes(payload))
                 for ip in group:
-                    new_packet = IP(dst=ip, src=packet['IP'].src)
-                    new_packet['IP'].payload = packet['IP'].payload
+                    print("Forwarding to " + ip)
+                    new_packet['IP'].dst = ip
                     new_packet['TCP'].payload = Raw(encrypted_payload)
                     
                     del new_packet['IP'].chksum
                     del new_packet['TCP'].chksum 
-
-                    send(new_packet)
+                    send(new_packet, verbose=False)
             elif dip == client:
+                print("Forwarding to client " + client)
                 # packet received from another node to our client. Unwrap it
                 decrypted_payload = decrypt(bytes.fromhex(KEY), bytes.fromhex(INIT_VECTOR), new_packet['TCP'].payload.load)
                 print(decrypted_payload)
@@ -47,7 +54,14 @@ def proxy(client, group):
                 del new_packet['IP'].chksum
                 del new_packet['TCP'].chksum 
 
-                send(new_packet)
+                send(new_packet, verbose = False)
+        else:
+
+            del new_packet['IP'].chksum
+            del new_packet['TCP'].chksum 
+            print('TCP packet with no payload received. Just forwarding')
+            send(packet)
+
 
     return wrapper
 
@@ -92,7 +106,8 @@ def main():
     # args = parser.parse_args()
     # file = args.config
     CLIENT_IP = os.environ['CLIENT']
-    GROUP = os.environ["WRAPPER-GROUP"]
+    GROUP = [x.strip() for x in os.environ["WRAPPER-GROUP"].split(',')]
+    print(GROUP)
     subnet = "/24"
 
     network = CLIENT_IP + subnet
