@@ -11,14 +11,42 @@ import json
 KEY = '6755a30834f24886ee88f177d920e0194edc70f03ecd9b67f91e29810eb01c6a'
 INIT_VECTOR = '3ffd0c5f236a1713b4feeb9c3af624c4'
 
-def proxy(client, group):
+WRAPPER_MAC = Ether().src
+WRAPPER_IP = get_if_addr("eth0")
+
+KEYS = list(mitm.WRAPPER_MAPPINGS.keys())
+VALUES = list(mitm.WRAPPER_MAPPINGS.values())
+
+# Encryption can be done two ways:
+# Encryption of the IP payload:
+#   Receive the packet, extract the whole IP payload, encrypt it and send
+#   On the other side, decrypt it and pass the whole packet to the client
+#   We do not concern ourselves with the transport layer. We handle it as RAW payload
+#   (What happens with TCP checksums? Does the client understand the transport layer of the decrypted raw paylaod?)
+# Encryption of the Transport layer paylaod (TCP):
+#   Receive the packet, extract only the TCP payload, if there is one, encrypt and send
+#   TCP packets with no paylaod are just forwared. This allows for TCP control messages (SYN, ACK, RST etc) to quickly pass through, since they don't need to be encrypted
+#   The client only needs to decrypt the TCP payload. All other information is already visible
+#   Checksums are calculated before packet is sent
+def proxy(client):
     def wrapper(packet):
+        
+        # Scapy sniffs all packets passing through an interface. 
+        # We need to discard the packets that we just sent with scapy to prvent infinite loop processing
+        # Problem: This also rejects the correct packets to send! How to fix?
+        if packet.haslayer('Ether') and packet['Ether'].src == WRAPPER_MAC:
+            print("Picked up own packet. Dropping")
+            return
 
         if not packet.haslayer('IP'):
             return
         
         new_packet = packet['IP']
-        new_packet['IP'].payload = packet['IP'].payload
+
+        print(packet.show())
+        sip = packet['IP'].src
+        dip = packet['IP'].dst
+        print("Packet received from " + str(sip) + " to " + str(dip))
 
         if not packet.haslayer('TCP'):
             del new_packet['IP'].chksum
@@ -27,28 +55,35 @@ def proxy(client, group):
 
         payload = packet['TCP'].payload
         if payload:
-            sip = packet['IP'].src
-            dip = packet['IP'].dst
-
-            print("Packet received from " + str(sip) + " to " + str(dip))
-
             if sip == client:
+                print("Encrypting packet")
                 # packet received from client. Wrap it and send it to wrapper's group
                 encrypted_payload = encrypt(bytes.fromhex(KEY), bytes.fromhex(INIT_VECTOR), bytes(payload))
-                for ip in group:
-                    print("Forwarding to " + ip)
-                    new_packet['IP'].dst = ip
-                    new_packet['TCP'].payload = Raw(encrypted_payload)
+                new_packet['TCP'].payload = Raw(encrypted_payload)
+
+                new_packet.show()
+
+                del new_packet['IP'].chksum
+                del new_packet['TCP'].chksum 
+
+                print("Forwarding to " + dip + "'s wrapper with MAC: " + mitm.HOST_LIST[KEYS[VALUES.index(dip)]])
+                sendp(Ether(dst = mitm.HOST_LIST[KEYS[VALUES.index(dip)]])/new_packet, verbose=False)
+                # for wrapper, node in mitm.WRAPPER_MAPPINGS.items():
+                #     if wrapper == WRAPPER_IP:
+                #         continue
+                #     print("Forwarding to " + node + ", with MAC: " + mitm.HOST_LIST[wrapper])
+                #     new_packet['IP'].dst = node
+                #     new_packet.show()
                     
-                    del new_packet['IP'].chksum
-                    del new_packet['TCP'].chksum 
-                    send(new_packet, verbose=False)
+                #     del new_packet['IP'].chksum
+                #     del new_packet['TCP'].chksum 
+
+                #     sendp(Ether(dst = mitm.HOST_LIST[wrapper])/new_packet, verbose=False)
             elif dip == client:
-                print("Forwarding to client " + client)
+                print("Decrypting and forwarding to client " + client)
                 # packet received from another node to our client. Unwrap it
-                decrypted_payload = decrypt(bytes.fromhex(KEY), bytes.fromhex(INIT_VECTOR), new_packet['TCP'].payload.load)
+                decrypted_payload = decrypt(bytes.fromhex(KEY), bytes.fromhex(INIT_VECTOR), bytes(payload))
                 print(decrypted_payload)
-                new_packet = IP(dst=client, src=packet['IP'].src)
                 new_packet['TCP'].payload = Raw(decrypted_payload)
 
                 del new_packet['IP'].chksum
@@ -56,12 +91,11 @@ def proxy(client, group):
 
                 send(new_packet, verbose = False)
         else:
-
+            
             del new_packet['IP'].chksum
             del new_packet['TCP'].chksum 
             print('TCP packet with no payload received. Just forwarding')
-            send(packet)
-
+            send(new_packet, verbose=False)
 
     return wrapper
 
@@ -128,11 +162,12 @@ def main():
     print("Targets poisoned successfully")
 
     try:
-        sniff(prn=proxy(CLIENT_IP, GROUP))
+        sniff(prn=proxy(CLIENT_IP))
     except KeyboardInterrupt:
-        for target_ip in mitm.HOST_LIST.keys():
-            if target_ip != CLIENT_IP:
-                mitm.restore_tables(CLIENT_IP, target_ip)
+        pass
+        # for target_ip in mitm.HOST_LIST.keys():
+        #     if target_ip != CLIENT_IP:
+        #         mitm.restore_tables(CLIENT_IP, target_ip)
 
 if __name__=="__main__":
     main()
