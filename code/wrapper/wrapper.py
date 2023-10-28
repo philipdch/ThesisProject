@@ -17,6 +17,20 @@ WRAPPER_IP = get_if_addr("eth0")
 KEYS = list(mitm.WRAPPER_MAPPINGS.keys())
 VALUES = list(mitm.WRAPPER_MAPPINGS.values())
 
+TRANSPORT_PROTOCOLS = {
+    0: "HOPOPT",  # IPv6 Hop-by-Hop Option
+    1: "ICMP",    # Internet Control Message Protocol
+    2: "IGMP",    # Internet Group Management Protocol
+    6: "TCP",     # Transmission Control Protocol
+    17: "UDP",    # User Datagram Protocol
+    41: "IPv6",   # IPv6 (used in IPv4 headers to indicate encapsulated IPv6)
+    47: "GRE",    # Generic Routing Encapsulation
+    50: "ESP",    # Encapsulating Security Payload
+    51: "AH",     # Authentication Header
+    58: "ICMPv6", # ICMP for IPv6
+    89: "OSPF",   # Open Shortest Path First (OSPF) Protocol
+}
+
 # Encryption can be done two ways:
 # Encryption of the IP payload:
 #   Receive the packet, extract the whole IP payload, encrypt it and send
@@ -30,10 +44,10 @@ VALUES = list(mitm.WRAPPER_MAPPINGS.values())
 #   Checksums are calculated before packet is sent
 def proxy(client):
     def wrapper(packet):
-        
+        print(packet.summary())
+
         # Scapy sniffs all packets passing through an interface. 
         # We need to discard the packets that we just sent with scapy to prvent infinite loop processing
-        # Problem: This also rejects the correct packets to send! How to fix?
         if packet.haslayer('Ether') and packet['Ether'].src == WRAPPER_MAC:
             print("Picked up own packet. Dropping")
             return
@@ -43,57 +57,71 @@ def proxy(client):
         
         new_packet = packet['IP']
 
-        print(packet.show())
         sip = packet['IP'].src
         dip = packet['IP'].dst
-        print("Packet received from " + str(sip) + " to " + str(dip))
 
-        if not packet.haslayer('TCP'):
+        if (not packet.haslayer('TCP')) and (not packet.haslayer('UDP')):
+            print("Packet doesn't have TCP or UDP layer")
             del new_packet['IP'].chksum
             send(new_packet, verbose=False)
             return
 
-        payload = packet['TCP'].payload
+        transport_proto = TRANSPORT_PROTOCOLS[packet['IP'].proto]
+        print(transport_proto)
+        payload = packet[transport_proto].payload
+        print("PAYLOAD = " + str(payload))
         if payload:
             if sip == client:
                 print("Encrypting packet")
                 # packet received from client. Wrap it and send it to wrapper's group
                 encrypted_payload = encrypt(bytes.fromhex(KEY), bytes.fromhex(INIT_VECTOR), bytes(payload))
-                new_packet['TCP'].payload = Raw(encrypted_payload)
+
+                new_packet[transport_proto].payload = Raw(encrypted_payload)
 
                 new_packet.show()
 
                 del new_packet['IP'].chksum
-                del new_packet['TCP'].chksum 
+                del new_packet[transport_proto].chksum 
 
                 print("Forwarding to " + dip + "'s wrapper with MAC: " + mitm.HOST_LIST[KEYS[VALUES.index(dip)]])
                 sendp(Ether(dst = mitm.HOST_LIST[KEYS[VALUES.index(dip)]])/new_packet, verbose=False)
                 # for wrapper, node in mitm.WRAPPER_MAPPINGS.items():
+                #     # Avoid forwarding to self
                 #     if wrapper == WRAPPER_IP:
                 #         continue
-                #     print("Forwarding to " + node + ", with MAC: " + mitm.HOST_LIST[wrapper])
+                #     print("Forwarding to " + node + "'s wrapper with MAC: " + mitm.HOST_LIST[wrapper])
                 #     new_packet['IP'].dst = node
                 #     new_packet.show()
                     
                 #     del new_packet['IP'].chksum
                 #     del new_packet['TCP'].chksum 
 
+                #     # Send a packet with Node target's IP, but its Wrapper's MAC. 
+                #     # This eliminates the need to poison wrappers, as each wrapper can directly
+                #     # send packets to other wrappers, while still preserving their transparency
                 #     sendp(Ether(dst = mitm.HOST_LIST[wrapper])/new_packet, verbose=False)
             elif dip == client:
+                # TODO: Check if packet was originally destined to client
+                # Maybe when encrypting the packet, use a flag (or key) so that after decryption the wrapper
+                # can determine whether to forward or drop it
                 print("Decrypting and forwarding to client " + client)
+
                 # packet received from another node to our client. Unwrap it
                 decrypted_payload = decrypt(bytes.fromhex(KEY), bytes.fromhex(INIT_VECTOR), bytes(payload))
                 print(decrypted_payload)
-                new_packet['TCP'].payload = Raw(decrypted_payload)
+
+                new_packet[transport_proto].payload = Raw(decrypted_payload)
 
                 del new_packet['IP'].chksum
-                del new_packet['TCP'].chksum 
+                del new_packet[transport_proto].chksum 
 
-                send(new_packet, verbose = False)
+                new_packet.show()
+                # Don't need to use layer 2 send. Wrapper already knows its node correct MAC
+                send(new_packet, verbose = True)
         else:
             
             del new_packet['IP'].chksum
-            del new_packet['TCP'].chksum 
+            del new_packet[transport_proto].chksum 
             print('TCP packet with no payload received. Just forwarding')
             send(new_packet, verbose=False)
 
