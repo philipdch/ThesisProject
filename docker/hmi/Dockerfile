@@ -1,9 +1,9 @@
-# Important: Image is based on ubuntu to provide necessary networking tools used for testing. 
-# Replace with a cargo base image when futher testing is not required to reduce size
 FROM ubuntu:22.04
 
 # Install Rust and necessary build tools
 RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
     rustc \
     cargo \
     build-essential \
@@ -14,10 +14,12 @@ RUN apt-get update && apt-get install -y \
 
 RUN mkdir -p /code
 
-COPY ./code/hmi/rodbus /code/rodbus
+COPY ./code/hmi /code
 
 WORKDIR /code/rodbus
 
 RUN cargo build
+
+RUN pip3 install -r requirements.txt
 
 CMD ["tail", "-f", "/dev/null"]

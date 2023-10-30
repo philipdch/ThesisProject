@@ -7,6 +7,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 import os
 import argparse
 import json
+import ipaddress
 
 KEY = '6755a30834f24886ee88f177d920e0194edc70f03ecd9b67f91e29810eb01c6a'
 INIT_VECTOR = '3ffd0c5f236a1713b4feeb9c3af624c4'
@@ -31,16 +32,11 @@ TRANSPORT_PROTOCOLS = {
     89: "OSPF",   # Open Shortest Path First (OSPF) Protocol
 }
 
-# Encryption can be done two ways:
-# Encryption of the IP payload:
-#   Receive the packet, extract the whole IP payload, encrypt it and send
-#   On the other side, decrypt it and pass the whole packet to the client
-#   We do not concern ourselves with the transport layer. We handle it as RAW payload
-#   (What happens with TCP checksums? Does the client understand the transport layer of the decrypted raw paylaod?)
-# Encryption of the Transport layer paylaod (TCP):
-#   Receive the packet, extract only the TCP payload, if there is one, encrypt and send
-#   TCP packets with no paylaod are just forwared. This allows for TCP control messages (SYN, ACK, RST etc) to quickly pass through, since they don't need to be encrypted
-#   The client only needs to decrypt the TCP payload. All other information is already visible
+# Encryption of the Transport layer paylaod (TCP or UDP):
+#   Receive the packet, extract only the transport layer's payload, if there is one, encrypt and send
+#   TCP packets with no paylaod are just forwared. This allows for TCP control messages (SYN, ACK, RST etc) to quickly pass through, 
+#   since they don't need to be encrypted
+#   The client only needs to decrypt the payload. All other information is already visible
 #   Checksums are calculated before packet is sent
 def proxy(client):
     def wrapper(packet):
@@ -57,8 +53,7 @@ def proxy(client):
         
         new_packet = packet['IP']
 
-        sip = packet['IP'].src
-        dip = packet['IP'].dst
+        sip, dip = packet['IP'].src, packet['IP'].dst
 
         if (not packet.haslayer('TCP')) and (not packet.haslayer('UDP')):
             print("Packet doesn't have TCP or UDP layer")
@@ -98,7 +93,9 @@ def proxy(client):
                     
                     del new_packet['IP'].len
                     del new_packet['IP'].chksum
-                    del new_packet['TCP'].chksum 
+                    del new_packet[transport_proto].chksum 
+                    if (transport_proto == "UDP"):
+                        del new_packet[transport_proto].len
 
                     # Send a packet with Node target's IP, but its Wrapper's MAC. 
                     # This eliminates the need to poison wrappers, as each wrapper can directly
@@ -120,6 +117,8 @@ def proxy(client):
                     del new_packet['IP'].len
                     del new_packet['IP'].chksum
                     del new_packet[transport_proto].chksum 
+                    if (transport_proto == "UDP"):
+                        del new_packet[transport_proto].len
 
                     new_packet.show()
                     # Don't need to use layer 2 send. Wrapper already knows its node correct MAC
@@ -177,11 +176,8 @@ def main():
     # file = args.config
     CLIENT_IP = os.environ['CLIENT']
     GROUP = [x.strip() for x in os.environ["WRAPPER-GROUP"].split(',')]
-    print(GROUP)
-    subnet = "/24"
 
-    network = CLIENT_IP + subnet
-    mitm.discovery(network)
+    mitm.discovery(WRAPPER_IP + "/24")
 
     for ip in mitm.HOST_LIST.keys():
         try:
