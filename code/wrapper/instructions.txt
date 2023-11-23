@@ -1,0 +1,21 @@
+1) Start the containers
+    $ ./setup.sh
+    NOTE: Bash is launched for 6 containers by default (PLC1, PLC2, HMI1 and their respective wrappers)
+          The following instructions can be applied to all other containers 
+3) Run the Modbus server from each PLC containers (By default Modbus/TCP)
+    plc/code
+    ╰─$ python3 plc.py [server_options]
+4) Run the wrapper from each Wrapper container 
+    wrapper/code
+    ╰─$ ./start.sh
+
+    NOTE: If the HMI and PLC containers haven't previously communicated with each other, their ARP caches will be empty 
+         and the wrappers won't be able to intercept their traffic.
+         In this case, run any tool that establishes a connection with the PLCs from the HMI (e.g. rodbus-client, ping etc) 
+         in order to populate its cache
+
+5) After the wrappers have been started, run any client tool from the HMI and confirm that packets are succesfully intercepted and forwarded
+    rodbus/target/debug 
+    ╰─$ ./rodbus-client -h 192.168.1.125:5020 rc --start 0 --quantity 5
+
+    NOTE: Rodbus should already be built by the time the HMI containers are created. If not, run "cargo build ." from inside the rodbus directory
