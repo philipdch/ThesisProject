@@ -108,6 +108,8 @@ services:
     container_name: wrapper_hmi1
     volumes:
       - ./code/wrapper:/code
+      - ./.ssh/wrapper_hmi1:/.ssh
+      - ./.ssh/common:/.ssh/common
     privileged: true
     mac_address: 02:42:ac:10:ee:0a
     networks:
@@ -124,6 +126,8 @@ services:
     container_name: wrapper_hmi2
     volumes:
       - ./code/wrapper:/code
+      - ./.ssh/wrapper_hmi2:/.ssh
+      - ./.ssh/common:/.ssh/common
     privileged: true
     mac_address: 02:42:ac:10:ee:0b
     networks:
@@ -140,6 +144,8 @@ services:
     container_name: wrapper_hmi3
     volumes:
       - ./code/wrapper:/code
+      - ./.ssh/wrapper_hmi3:/.ssh
+      - ./.ssh/common:/.ssh/common
     privileged: true
     mac_address: 02:42:ac:10:ee:0c
     networks:
@@ -156,6 +162,8 @@ services:
     container_name: wrapper_plc1
     volumes:
       - ./code/wrapper:/code
+      - ./.ssh/wrapper_plc1:/.ssh
+      - ./.ssh/common:/.ssh/common
     privileged: true
     mac_address: 02:42:ac:10:ee:10
     networks:
@@ -172,6 +180,8 @@ services:
     container_name: wrapper_plc2
     volumes:
       - ./code/wrapper:/code
+      - ./.ssh/wrapper_plc2:/.ssh
+      - ./.ssh/common:/.ssh/common
     privileged: true
     mac_address: 02:42:ac:10:ee:11
     networks:
@@ -188,6 +198,8 @@ services:
     container_name: wrapper_plc3
     volumes:
       - ./code/wrapper:/code
+      - ./.ssh/wrapper_plc3:/.ssh
+      - ./.ssh/common:/.ssh/common
     privileged: true
     mac_address: 02:42:ac:10:ee:12
     networks:
@@ -204,6 +216,8 @@ services:
     container_name: wrapper_plc4
     volumes:
       - ./code/wrapper:/code
+      - ./.ssh/wrapper_plc4:/.ssh
+      - ./.ssh/common:/.ssh/common
     privileged: true
     mac_address: 02:42:ac:10:ee:13
     networks:
@@ -220,6 +234,8 @@ services:
     container_name: wrapper_plc5
     volumes:
       - ./code/wrapper:/code
+      - ./.ssh/wrapper_plc5:/.ssh
+      - ./.ssh/common:/.ssh/common
     privileged: true
     mac_address: 02:42:ac:10:ee:14
     networks:

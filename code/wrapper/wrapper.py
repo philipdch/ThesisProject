@@ -3,20 +3,26 @@ import mitm
 from scapy.all import *
 from scapy.contrib.modbus import ModbusADURequest, ModbusADUResponse
 
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+# from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from Crypto.PublicKey import RSA
+from Crypto.Cipher import PKCS1_OAEP
+import binascii
 import os
 import argparse
 import json
-import ipaddress
 
-KEY = '6755a30834f24886ee88f177d920e0194edc70f03ecd9b67f91e29810eb01c6a'
-INIT_VECTOR = '3ffd0c5f236a1713b4feeb9c3af624c4'
+# KEY = '6755a30834f24886ee88f177d920e0194edc70f03ecd9b67f91e29810eb01c6a'
+# INIT_VECTOR = '3ffd0c5f236a1713b4feeb9c3af624c4'
+
+PRIVATE_KEY = ''
 
 WRAPPER_MAC = Ether().src
 WRAPPER_IP = get_if_addr("eth0")
 
 KEYS = list(mitm.WRAPPER_MAPPINGS.keys())
 VALUES = list(mitm.WRAPPER_MAPPINGS.values())
+
+PKEY_MAPPINGS = {}
 
 TRANSPORT_PROTOCOLS = {
     0: "HOPOPT",  # IPv6 Hop-by-Hop Option
@@ -67,9 +73,11 @@ def proxy(client):
         print("PAYLOAD = " + str(payload))
         if payload:
             if sip == client:
-                print("Encrypting packet")
+                print("Encrypting packet, with key: " + PKEY_MAPPINGS[dip][1])
                 # packet received from client. Wrap it and send it to wrapper's group
-                encrypted_payload = encrypt(bytes.fromhex(KEY), bytes.fromhex(INIT_VECTOR), payload)
+                encrypted_payload = encrypt(payload, PKEY_MAPPINGS[dip][0])
+                print("Encrypted Message is:", binascii.hexlify(encrypted_payload))
+                new_packet[transport_proto].payload = Raw(encrypted_payload)
 
                 # del new_packet['IP'].chksum
                 # del new_packet[transport_proto].chksum 
@@ -82,10 +90,10 @@ def proxy(client):
                         continue
                     
                     # Temporary. Need a way for the receiver to discard packets not addressed to its node
-                    if mitm.WRAPPER_MAPPINGS[wrapper] == dip:
-                        new_packet[transport_proto].payload = Raw(encrypted_payload + b'\x01')
-                    else:
-                        new_packet[transport_proto].payload = Raw(encrypted_payload + b'\x00')
+                    # if mitm.WRAPPER_MAPPINGS[wrapper] == dip:
+                    #     new_packet[transport_proto].payload = Raw(encrypted_payload + b'\x01')
+                    # else:
+                    #     new_packet[transport_proto].payload = Raw(encrypted_payload + b'\x00')
 
                     print("Forwarding to " + node + "'s wrapper with MAC: " + mitm.HOST_LIST[wrapper])
                     new_packet['IP'].dst = node
@@ -104,12 +112,14 @@ def proxy(client):
             elif dip == client:
                 print("Decrypting and forwarding to client " + client)
 
-                forward = payload[-1]
-                print("Forward? " + str(forward))
-                if forward == 1:
-                    # packet received from another node to our client. Unwrap it
-                    payload = payload[:-1]
-                    decrypted_payload = decrypt(bytes.fromhex(KEY), bytes.fromhex(INIT_VECTOR), payload)
+                # packet received from another node to our client.
+                # Try to decrypt packet using the PKCS#1_OAEP cipher. Decryption will either:
+                # Succeed. This means the message was encrypted using the wrapper's public key,
+                #          therefore it is addressed to the node behind it. We need to forward it.
+                # b) Fail. Similarly, the payload was encrypted with another node's public key.
+                #          In this case, we simply drop the packet.
+                try:
+                    decrypted_payload = decrypt(payload, PRIVATE_KEY)
                     print(decrypted_payload)
 
                     new_packet[transport_proto].payload = Raw(decrypted_payload)
@@ -123,34 +133,28 @@ def proxy(client):
                     new_packet.show()
                     # Don't need to use layer 2 send. Wrapper already knows its node correct MAC
                     send(new_packet, verbose = True)
-                else:
-                    print("Packet not addressed to client. Dropping")
+                except ValueError as ex:
+                    print("Decryption failed: Wrong private key, dropping packet")
+                except TypeError as ex:
+                    print("Decryption failed: Used public key, dropping packet")
         else:
             
             del new_packet['IP'].chksum
             del new_packet[transport_proto].chksum 
-            print('TCP packet with no payload received. Just forwarding')
+            print('Packet with no payload received. Just forwarding')
             send(new_packet, verbose=False)
 
     return wrapper
 
-def encrypt(key, initialization_vector, message):
-    algorithm = algorithms.AES(key)
-    mode = modes.CTR(initialization_vector)
+def encrypt(plaintext, key):
+    encryptor = PKCS1_OAEP.new(key)
+    encrypted_msg = encryptor.encrypt(plaintext)
+    return encrypted_msg
 
-    cipher = Cipher(algorithm, mode)
-    encryptor = cipher.encryptor()
-
-    return encryptor.update(message) + encryptor.finalize()
-
-def decrypt(key, initialization_vector, message):
-    algorithm = algorithms.AES(key)
-    mode = modes.CTR(initialization_vector)
-
-    cipher = Cipher(algorithm, mode)
-
-    decryptor = cipher.decryptor()
-    return decryptor.update(message) + decryptor.finalize()
+def decrypt(ciphertext, key):
+    decryptor = PKCS1_OAEP.new(key)
+    decrypted_msg = decryptor.decrypt(ciphertext)
+    return decrypted_msg
 
 def main():
     parser = argparse.ArgumentParser(prog="Wrapper", 
@@ -176,6 +180,30 @@ def main():
     # file = args.config
     CLIENT_IP = os.environ['CLIENT']
     GROUP = [x.strip() for x in os.environ["WRAPPER-GROUP"].split(',')]
+
+    private_key_path = os.path.join(os.path.dirname(__file__), '..', '.ssh', 'id_rsa')
+    try:
+        with open(private_key_path, 'r') as private_key_file:
+            global PRIVATE_KEY
+            PRIVATE_KEY = RSA.import_key(private_key_file.read())
+    except FileNotFoundError:
+        print("Error: Private Key file not found")
+
+    public_keys_path = os.path.join(os.path.dirname(__file__), '..', '.ssh/common')
+    mappings_path = os.path.join(public_keys_path, 'hosts.json')
+    global PKEY_MAPPINGS
+    try:
+        with open(mappings_path, 'r') as file:
+            PKEY_MAPPINGS = json.load(file)['hostMappings']
+    except FileNotFoundError:
+        print(f"Error: JSON file not found at {mappings_path}")
+        PKEY_MAPPINGS = {}
+    print(PKEY_MAPPINGS)
+
+    for host, key_name in PKEY_MAPPINGS.items():
+        key_path = os.path.join(public_keys_path, key_name)
+        with open(key_path, 'r') as pkey_file:
+            PKEY_MAPPINGS[host]= (RSA.import_key(pkey_file.read()), key_path)
 
     mitm.discovery(WRAPPER_IP + "/24")
 
