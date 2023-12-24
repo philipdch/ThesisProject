@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
     rustc \
     cargo \
     build-essential \
-    iputils-ping \
+    iputils-arping \
     net-tools \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
@@ -16,10 +16,10 @@ RUN mkdir -p /code
 
 COPY ./code/hmi /code
 
-WORKDIR /code/rodbus
-
-RUN cargo build
-
+WORKDIR /code
 RUN pip3 install -r requirements.txt
+
+WORKDIR /code/rodbus
+RUN cargo build
 
 CMD ["tail", "-f", "/dev/null"]

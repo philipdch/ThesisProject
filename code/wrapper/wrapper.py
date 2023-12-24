@@ -1,26 +1,20 @@
 import mitm
+from encryption import encrypt, decrypt, read_key
 
 from scapy.all import *
 from scapy.contrib.modbus import ModbusADURequest, ModbusADUResponse
 
-# from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from Crypto.PublicKey import RSA
-from Crypto.Cipher import PKCS1_OAEP
 import binascii
 import os
 import argparse
 import json
 
-# KEY = '6755a30834f24886ee88f177d920e0194edc70f03ecd9b67f91e29810eb01c6a'
-# INIT_VECTOR = '3ffd0c5f236a1713b4feeb9c3af624c4'
-
+packets = []
+    
 PRIVATE_KEY = ''
 
 WRAPPER_MAC = Ether().src
 WRAPPER_IP = get_if_addr("eth0")
-
-KEYS = list(mitm.WRAPPER_MAPPINGS.keys())
-VALUES = list(mitm.WRAPPER_MAPPINGS.values())
 
 PKEY_MAPPINGS = {}
 
@@ -44,7 +38,7 @@ TRANSPORT_PROTOCOLS = {
 #   since they don't need to be encrypted
 #   The client only needs to decrypt the payload. All other information is already visible
 #   Checksums are calculated before packet is sent
-def proxy(client):
+def proxy(client, group):
     def wrapper(packet):
         packet.show()
 
@@ -73,30 +67,24 @@ def proxy(client):
         print("PAYLOAD = " + str(payload))
         if payload:
             if sip == client:
-                print("Encrypting packet, with key: " + PKEY_MAPPINGS[dip][1])
+                print("Encrypting packet, with " + dip + " wrapper's key")
                 # packet received from client. Wrap it and send it to wrapper's group
-                encrypted_payload = encrypt(payload, PKEY_MAPPINGS[dip][0])
+                # The packet's payload is encrypted using the destination's wrapper's public key
+                # This ensures that the packet may be safely forwarded to every other node in the group
+                # but only the original recipient's wrapper will be able to decipher it and forward it to it.
+                # For every other wrapper, the decryptiom will fail, prompting them to drop the packet
+                encrypted_payload = encrypt(payload, PKEY_MAPPINGS[dip])
                 print("Encrypted Message is:", binascii.hexlify(encrypted_payload))
                 new_packet[transport_proto].payload = Raw(encrypted_payload)
 
-                # del new_packet['IP'].chksum
-                # del new_packet[transport_proto].chksum 
-
-                # print("Forwarding to " + dip + "'s wrapper with MAC: " + mitm.HOST_LIST[KEYS[VALUES.index(dip)]])
-                # sendp(Ether(dst = mitm.HOST_LIST[KEYS[VALUES.index(dip)]])/new_packet, verbose=False)
-                for wrapper, node in mitm.WRAPPER_MAPPINGS.items():
+                for wrapper in group:
+                    wrapper_client = mitm.WRAPPER_MAPPINGS[wrapper]
                     # Avoid forwarding to self
                     if wrapper == WRAPPER_IP:
                         continue
-                    
-                    # Temporary. Need a way for the receiver to discard packets not addressed to its node
-                    # if mitm.WRAPPER_MAPPINGS[wrapper] == dip:
-                    #     new_packet[transport_proto].payload = Raw(encrypted_payload + b'\x01')
-                    # else:
-                    #     new_packet[transport_proto].payload = Raw(encrypted_payload + b'\x00')
 
-                    print("Forwarding to " + node + "'s wrapper with MAC: " + mitm.HOST_LIST[wrapper])
-                    new_packet['IP'].dst = node
+                    print("Forwarding to " + wrapper_client + "'s wrapper with MAC: " + mitm.HOST_LIST[wrapper])
+                    new_packet['IP'].dst = wrapper_client
                     new_packet.show()
                     
                     del new_packet['IP'].len
@@ -146,49 +134,40 @@ def proxy(client):
 
     return wrapper
 
-def encrypt(plaintext, key):
-    encryptor = PKCS1_OAEP.new(key)
-    encrypted_msg = encryptor.encrypt(plaintext)
-    return encrypted_msg
-
-def decrypt(ciphertext, key):
-    decryptor = PKCS1_OAEP.new(key)
-    decrypted_msg = decryptor.decrypt(ciphertext)
-    return decrypted_msg
-
 def main():
     parser = argparse.ArgumentParser(prog="Wrapper", 
                                      description='Wrapper that acts as a transparent proxy. Intercepts packets from the client \
-                                        processes them and forwards them to the correct destination where they will be \
+                                        processes them and forwards them to the wrapper\'s group where they will be \
                                         intercepted again by the corresponding wrapper'
                                     )
-    parser.add_argument('--config', '-c',
-                    help='the path to the wrapper\'s configuration file')
-    # subparsers = parser.add_subparsers(help='Launch an ARP poison attack to make the wrapper act as a proxy between the client \
-    #                                     and the other nodes. This is necessary for the wrapper to function properly. Use this if \
-    #                                     you don\'t intent to use another tool for this job (e.g. ettercap)')
-    
-    # mitm_parser = subparsers.add_parser('mitm', 
-    #                                     help='Launch an ARP poison attack against the client')
+    # parser.add_argument('--cip', dest='client_ip', required=True, help="Client's IP address")
 
-    # mitm_parser.add_argument('--network', 
-    #                          help='The client\'s network address or subnet mask (e.g. 192.168.0.0/24 OR /24)')
+    parser.add_argument('--gid', dest='group_number', required=True, help="Wrapper's group id. Must be defined in the 'groups.json' file")
 
-    # parser.parse_args(['--client', 'mitm', '--network'])
-    # parser.add_argument('--wrappers', nargs='*', default=[], help= 'the IPs of the wrappers in the network')
-    # args = parser.parse_args()
-    # file = args.config
-    CLIENT_IP = os.environ['CLIENT']
-    GROUP = [x.strip() for x in os.environ["WRAPPER-GROUP"].split(',')]
+    # Parse the command line arguments
+    args = parser.parse_args()
 
+    # client_ip = args.client_ip
+    gid = args.group_number
+    client_ip = os.environ['CLIENT']
+
+    # Get wrapper's group from json file
+    group=[]
+    try:
+        with open('groups.json', 'r') as file:
+            group = json.load(file)['groups'][gid]
+    except FileNotFoundError:
+        print(f"Error: JSON file not found")
+
+    # Read wrapper's private key
     private_key_path = os.path.join(os.path.dirname(__file__), '..', '.ssh', 'id_rsa')
     try:
-        with open(private_key_path, 'r') as private_key_file:
-            global PRIVATE_KEY
-            PRIVATE_KEY = RSA.import_key(private_key_file.read())
+        global PRIVATE_KEY
+        PRIVATE_KEY = read_key(private_key_path)
     except FileNotFoundError:
         print("Error: Private Key file not found")
 
+    # Read public keys and map them to their respective wrappers
     public_keys_path = os.path.join(os.path.dirname(__file__), '..', '.ssh/common')
     mappings_path = os.path.join(public_keys_path, 'hosts.json')
     global PKEY_MAPPINGS
@@ -197,32 +176,35 @@ def main():
             PKEY_MAPPINGS = json.load(file)['hostMappings']
     except FileNotFoundError:
         print(f"Error: JSON file not found at {mappings_path}")
-        PKEY_MAPPINGS = {}
-    print(PKEY_MAPPINGS)
-
-    for host, key_name in PKEY_MAPPINGS.items():
-        key_path = os.path.join(public_keys_path, key_name)
-        with open(key_path, 'r') as pkey_file:
-            PKEY_MAPPINGS[host]= (RSA.import_key(pkey_file.read()), key_path)
-
+    
+    # Discover active hosts on the local network
     mitm.discovery(WRAPPER_IP + "/24")
 
-    for ip in mitm.HOST_LIST.keys():
-        try:
-            mitm.HOST_LIST[ip] = mitm.get_mac(ip)    
-        except Exception:
-            print("Couldn't Find MAC Address for target" + ip)
+    for host in mitm.HOST_LIST.keys():
+        # Read the wrappers' public keys
+        if host in PKEY_MAPPINGS:
+            key_name = PKEY_MAPPINGS[host]
+            key_path = os.path.join(public_keys_path, key_name)
+            try:
+                PKEY_MAPPINGS[host] = read_key(key_path)
+            except FileNotFoundError as ex:
+                print("Error: Public Key file for host '" + host + "' not found")
 
     for target_ip in mitm.HOST_LIST.keys():
-        if target_ip != CLIENT_IP:
-            if target_ip not in GROUP:
-                mitm.one_way_poison(CLIENT_IP, target_ip)
+        if target_ip != client_ip:
+            # If the target is not a wrapper we need to one-way poison it so that only
+            # our client forwards traffic intended for them through us, but we don't change 
+            # the target node's arp cache, since another wrapper is responsible for it
+            # Otherwise, we need to poison the client and the target, in order to appear
+            # transparent to both of them.
+            if target_ip not in mitm.WRAPPER_MAPPINGS:
+                mitm.one_way_poison(client_ip, target_ip)
             else:
-                mitm.arp_poison(CLIENT_IP, target_ip)
+                mitm.arp_poison(client_ip, target_ip)
     print("Targets poisoned successfully")
 
     try:
-        sniff(prn=proxy(CLIENT_IP))
+        sniff(prn=proxy(client_ip, group))
     except KeyboardInterrupt:
         pass
         # for target_ip in mitm.HOST_LIST.keys():

@@ -13,6 +13,10 @@ echo "Docker Compose rebuild and restart completed."
 
 containers=("hmi1" "plc1" "plc2" "wrapper_hmi1" "wrapper_plc1" "wrapper_plc2")
 
+for container in "${containers[@]}"; do
+    pkill -f "docker exec -ti ${container} bash"
+done
+
 sleep 10  
 
 # Launch bash for the containers we wish to test our implementation on
