@@ -103,7 +103,8 @@ def proxy(client, group):
                     sendp(Ether(dst = mitm.HOST_LIST[wrapper])/new_packet, verbose=False)
                     sent_time = time.time()
                     packet_timings = {
-                        'packet': new_packet.copy(),
+                        'id':len(packets),
+                        'packet': new_packet.summary(),
                         'received_time': new_packet.time,
                         'sent_time': sent_time,
                         'func_exec_time': None
@@ -153,7 +154,8 @@ def proxy(client, group):
                 packets[-1]['func_exec_time'] = execution_time
         else:
             packet_timings = {
-                'packet': new_packet,
+                'id':len(packets),
+                'packet': new_packet.summary(),
                 'received_time': new_packet.time,
                 'sent_time': sent_time,
                 'func_exec_time': execution_time
@@ -239,15 +241,9 @@ def main():
         sniffer.stop()
         print("Writing log")
         wrapper_id = WRAPPER_IP.split(".")[-1]
-        log_filename = 'log_' + wrapper_id + '.txt'
+        log_filename = './performance/log_' + wrapper_id + '.json'
         with open(log_filename, 'w') as log_file:
-            for packet_info in packets:
-                log_file.write(f"Packet Info:\n")
-                log_file.write(f"Packet:\n{packet_info['packet']}\n")
-                log_file.write(f"Received Time: {packet_info['received_time']}\n")
-                log_file.write(f"Sent Time: {packet_info['sent_time']}\n")
-                log_file.write(f"Function Execution Time: {packet_info['func_exec_time']}\n")
-                log_file.write("\n")
+            json.dump(packets, log_file)
         # for target_ip in mitm.HOST_LIST.keys():
         #     if target_ip != CLIENT_IP:
         #         mitm.restore_tables(CLIENT_IP, target_ip)
