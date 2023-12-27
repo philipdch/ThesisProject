@@ -1,7 +1,0 @@
-Packet Info:
-Packet:
-IP / TCP / ModbusADURequest / Modbus User-Defined Request Unknown user-defined request function Code
-Received Time: 1703586679.1277196
-Sent Time: 0
-Function Execution Time: 0.015555438003502786
-
