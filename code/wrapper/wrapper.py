@@ -59,91 +59,101 @@ def proxy(client, group):
         # Process only packets that have a TCP or UDP layer, commonly used for every application protocol we examanied
         if (not packet.haslayer('TCP')) and (not packet.haslayer('UDP')):
             print("Packet doesn't have TCP or UDP layer")
-            del new_packet['IP'].chksum
-            send(new_packet, verbose=False)
             return
 
         transport_proto = TRANSPORT_PROTOCOLS[packet['IP'].proto] # Get the transport layer protocol 
-        print(transport_proto)
         payload = bytes(packet[transport_proto].payload)
         print("PAYLOAD = " + str(payload))
         sent_time = 0
-        if payload:
-            # The packet's payload is encrypted using the destination's wrapper's public key.
+        if sip == client:
+            # packet received from client. Wrap it and send it to wrapper's group
+            if payload:
+                # The packet's payload is encrypted using the destination's wrapper's public key.
                 # This ensures that the packet may be safely forwarded to every other node in the group
                 # but only the original recipient's wrapper will be able to decipher it and forward it to it.
                 # For every other wrapper, the decryptiom will fail, prompting them to drop the packet
-            if sip == client:
-                # packet received from client. Wrap it and send it to wrapper's group
                 print("Encrypting packet, with " + dip + " wrapper's key")
                 encrypted_payload = encrypt(payload, PKEY_MAPPINGS[dip])
                 print("Encrypted Message is:", binascii.hexlify(encrypted_payload))
                 new_packet[transport_proto].payload = Raw(encrypted_payload)
+            elif(new_packet.haslayer('TCP') and (new_packet['TCP'].flags & 0x04)):
+                # Avoid resetting original connection
+                # Could just drop RST
+                print('Forwarding RST only to original destination.')
+                del new_packet['IP'].chksum
+                del new_packet[transport_proto].chksum
+                send(new_packet, verbose = False)
+                sent_time = time.time()
+                packet_timings = {
+                    'id':len(packets),
+                    'packet': new_packet.summary(),
+                    'received_time': new_packet.time,
+                    'sent_time': sent_time,
+                    'func_exec_time': None
+                }
+                packets.append(packet_timings)
+                return
+            
+            for wrapper in group:
+                wrapper_client = mitm.WRAPPER_MAPPINGS[wrapper]
 
-                for wrapper in group:
-                    wrapper_client = mitm.WRAPPER_MAPPINGS[wrapper]
+                # Avoid forwarding to self
+                if wrapper == WRAPPER_IP:
+                    continue
+                
+                print("Forwarding to " + wrapper_client + "'s wrapper with MAC: " + mitm.HOST_LIST[wrapper])
+                new_packet['IP'].dst = wrapper_client
+                new_packet.show()
+                
+                del new_packet['IP'].len
+                del new_packet['IP'].chksum
+                del new_packet[transport_proto].chksum 
+                if (transport_proto == "UDP"):
+                    del new_packet[transport_proto].len
 
-                    # Avoid forwarding to self
-                    if wrapper == WRAPPER_IP:
-                        continue
-                    
-                    print("Forwarding to " + wrapper_client + "'s wrapper with MAC: " + mitm.HOST_LIST[wrapper])
-                    new_packet['IP'].dst = wrapper_client
-                    new_packet.show()
-                    
-                    del new_packet['IP'].len
-                    del new_packet['IP'].chksum
-                    del new_packet[transport_proto].chksum 
-                    if (transport_proto == "UDP"):
-                        del new_packet[transport_proto].len
-
-                    # Send a packet with Node target's IP, but its Wrapper's MAC. 
-                    # This eliminates the need to poison wrappers, as each wrapper can directly
-                    # send packets to other wrappers, while still preserving their transparency
-                    sendp(Ether(dst = mitm.HOST_LIST[wrapper])/new_packet, verbose=False)
-                    sent_time = time.time()
-                    packet_timings = {
-                        'id':len(packets),
-                        'packet': new_packet.summary(),
-                        'received_time': new_packet.time,
-                        'sent_time': sent_time,
-                        'func_exec_time': None
-                    }
-                    packets.append(packet_timings)
-            elif dip == client:
-                # packet received from another node to our client.
-                # Try to decrypt packet using the PKCS#1_OAEP cipher. Decryption will either:
-                # Succeed. This means the message was encrypted using the wrapper's public key,
-                #          therefore it is addressed to the node behind it. We need to forward it.
-                # b) Fail. Similarly, the payload was encrypted with another node's public key.
-                #          In this case, we simply drop the packet.
-                print("Decrypting and forwarding to client " + client)
+                # Send a packet with Node target's IP, but its Wrapper's MAC. 
+                # This eliminates the need to poison wrappers, as each wrapper can directly
+                # send packets to other wrappers, while still preserving their transparency
+                sendp(Ether(dst = mitm.HOST_LIST[wrapper])/new_packet, verbose=False)
+                sent_time = time.time()
+                packet_timings = {
+                    'id':len(packets),
+                    'packet': new_packet.summary(),
+                    'received_time': new_packet.time,
+                    'sent_time': sent_time,
+                    'func_exec_time': None
+                }
+                packets.append(packet_timings)
+        elif dip == client:
+            print("Decrypting and forwarding to client " + client)
+            # packet received from another node to our client.
+            # Try to decrypt packet using the PKCS#1_OAEP cipher. Decryption will either:
+            # Succeed. This means the message was encrypted using the wrapper's public key,
+            #          therefore it is addressed to the node behind it. We need to forward it.
+            # b) Fail. Similarly, the payload was encrypted with another node's public key.
+            #          In this case, we simply drop the packet.
+            if payload:
                 try:
                     decrypted_payload = decrypt(payload, PRIVATE_KEY)
                     print(decrypted_payload)
 
                     new_packet[transport_proto].payload = Raw(decrypted_payload)
-
-                    del new_packet['IP'].len
-                    del new_packet['IP'].chksum
-                    del new_packet[transport_proto].chksum 
-                    if (transport_proto == "UDP"):
-                        del new_packet[transport_proto].len
-
-                    new_packet.show()
-                    # Don't need to use layer 2 send. Wrapper already knows its node's correct MAC
-                    send(new_packet, verbose = True)
-                    sent_time = time.time()
                 except ValueError as ex:
                     print("Decryption failed: Wrong private key, dropping packet")
+                    return
                 except TypeError as ex:
                     print("Decryption failed: Used public key, dropping packet")
-        else:
-            
+                    return
+
+            del new_packet['IP'].len
             del new_packet['IP'].chksum
             del new_packet[transport_proto].chksum 
-            print('Packet with no payload received. Just forwarding')
-            send(new_packet, verbose=False)
+            if (transport_proto == "UDP"):
+                del new_packet[transport_proto].len
+
+            new_packet.show()
+            # Don't need to use layer 2 send. Wrapper already knows its node's correct MAC
+            send(new_packet, verbose = False)
             sent_time = time.time()
 
         end_time = time.perf_counter()
@@ -236,14 +246,14 @@ def main():
         sniffer = AsyncSniffer(prn=proxy(client_ip, group)) #Use AsyncSniffer which doesn't block
         sniffer.start()
         sniffer.join()
-        # sniff(prn=proxy(client_ip, group))
     except KeyboardInterrupt:
         sniffer.stop()
-        print("Writing log")
         wrapper_id = WRAPPER_IP.split(".")[-1]
         log_filename = './performance/log_' + wrapper_id + '.json'
         with open(log_filename, 'w') as log_file:
+            print("\nWriting log as " + log_filename)
             json.dump(packets, log_file)
+            print("Log saved")
         # for target_ip in mitm.HOST_LIST.keys():
         #     if target_ip != CLIENT_IP:
         #         mitm.restore_tables(CLIENT_IP, target_ip)
