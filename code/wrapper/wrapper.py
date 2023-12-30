@@ -33,6 +33,46 @@ TRANSPORT_PROTOCOLS = {
     89: "OSPF",   # Open Shortest Path First (OSPF) Protocol
 }
 
+def load_group(group_id):
+    try:
+        with open('groups.json', 'r') as file:
+            return json.load(file)['groups'][group_id]
+    except FileNotFoundError:
+        print(f"Error: JSON file not found")
+        return []
+
+def load_pub_key(key_path):
+    try:
+        return read_key(key_path)
+    except FileNotFoundError as ex:
+        print("Error: Public Key file not found")
+        return None
+
+def load_private_key(key_path):
+    try:
+        return read_key(key_path)
+    except FileNotFoundError:
+        print("Error: Private Key file not found")
+        return None
+
+def update_timings(pkt, sent_time, exec_time):
+    packet_timings = {
+                    'id':len(packets),
+                    'packet': pkt.summary(),
+                    'received_time': pkt.time,
+                    'sent_time': sent_time,
+                    'func_exec_time': exec_time
+                }
+    packets.append(packet_timings)
+
+def write_log():
+    wrapper_id = WRAPPER_IP.split(".")[-1]
+    log_filename = './performance/log_' + wrapper_id + '.json'
+    with open(log_filename, 'w') as log_file:
+        print("\nWriting log as " + log_filename)
+        json.dump(packets, log_file)
+        print("Log saved")
+
 # Encryption of the Transport layer paylaod (TCP or UDP):
 #   Receive the packet, extract only the transport layer's payload, if there is one, encrypt and send
 #   TCP packets with no paylaod are just forwared. This allows for TCP control messages (SYN, ACK, RST etc) to quickly pass through, 
@@ -84,14 +124,7 @@ def proxy(client, group):
                 del new_packet[transport_proto].chksum
                 send(new_packet, verbose = False)
                 sent_time = time.time()
-                packet_timings = {
-                    'id':len(packets),
-                    'packet': new_packet.summary(),
-                    'received_time': new_packet.time,
-                    'sent_time': sent_time,
-                    'func_exec_time': None
-                }
-                packets.append(packet_timings)
+                update_timings(new_packet, sent_time, None)
                 return
             
             for wrapper in group:
@@ -116,14 +149,7 @@ def proxy(client, group):
                 # send packets to other wrappers, while still preserving their transparency
                 sendp(Ether(dst = mitm.HOST_LIST[wrapper])/new_packet, verbose=False)
                 sent_time = time.time()
-                packet_timings = {
-                    'id':len(packets),
-                    'packet': new_packet.summary(),
-                    'received_time': new_packet.time,
-                    'sent_time': sent_time,
-                    'func_exec_time': None
-                }
-                packets.append(packet_timings)
+                update_timings(new_packet, sent_time, None)
         elif dip == client:
             print("Decrypting and forwarding to client " + client)
             # packet received from another node to our client.
@@ -136,7 +162,6 @@ def proxy(client, group):
                 try:
                     decrypted_payload = decrypt(payload, PRIVATE_KEY)
                     print(decrypted_payload)
-
                     new_packet[transport_proto].payload = Raw(decrypted_payload)
                 except ValueError as ex:
                     print("Decryption failed: Wrong private key, dropping packet")
@@ -163,14 +188,7 @@ def proxy(client, group):
                 # Execution time is calculated and assigned to the last packet forwarded
                 packets[-1]['func_exec_time'] = execution_time
         else:
-            packet_timings = {
-                'id':len(packets),
-                'packet': new_packet.summary(),
-                'received_time': new_packet.time,
-                'sent_time': sent_time,
-                'func_exec_time': execution_time
-            }
-            packets.append(packet_timings)
+            update_timings(new_packet, sent_time, execution_time)
 
     return wrapper
 
@@ -192,20 +210,12 @@ def main():
     client_ip = os.environ['CLIENT']
 
     # Get wrapper's group from json file
-    group=[]
-    try:
-        with open('groups.json', 'r') as file:
-            group = json.load(file)['groups'][gid]
-    except FileNotFoundError:
-        print(f"Error: JSON file not found")
+    group = load_group(gid)
 
     # Read wrapper's private key
+    global PRIVATE_KEY
     private_key_path = os.path.join(os.path.dirname(__file__), '..', '.ssh', 'id_rsa')
-    try:
-        global PRIVATE_KEY
-        PRIVATE_KEY = read_key(private_key_path)
-    except FileNotFoundError:
-        print("Error: Private Key file not found")
+    PRIVATE_KEY = load_private_key(private_key_path)
 
     # Read public keys and map them to their respective wrappers
     public_keys_path = os.path.join(os.path.dirname(__file__), '..', '.ssh/common')
@@ -225,10 +235,7 @@ def main():
         if host in PKEY_MAPPINGS:
             key_name = PKEY_MAPPINGS[host]
             key_path = os.path.join(public_keys_path, key_name)
-            try:
-                PKEY_MAPPINGS[host] = read_key(key_path)
-            except FileNotFoundError as ex:
-                print("Error: Public Key file for host '" + host + "' not found")
+            PKEY_MAPPINGS[host] = load_pub_key(key_path)
 
         if host != client_ip:
             # If the target is not a wrapper we need to one-way poison it so that only
@@ -248,12 +255,7 @@ def main():
         sniffer.join()
     except KeyboardInterrupt:
         sniffer.stop()
-        wrapper_id = WRAPPER_IP.split(".")[-1]
-        log_filename = './performance/log_' + wrapper_id + '.json'
-        with open(log_filename, 'w') as log_file:
-            print("\nWriting log as " + log_filename)
-            json.dump(packets, log_file)
-            print("Log saved")
+        write_log()
         # for target_ip in mitm.HOST_LIST.keys():
         #     if target_ip != CLIENT_IP:
         #         mitm.restore_tables(CLIENT_IP, target_ip)
