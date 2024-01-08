@@ -3,6 +3,14 @@
 # Stop and remove existing containers
 docker-compose down
 
+containers=("hmi1" "plc1" "plc2" "wrapper_hmi1" "wrapper_plc1" "wrapper_plc2")
+
+for container in "${containers[@]}"; do
+    pkill -f "docker exec -ti ${container} bash"
+done
+
+source ./gen_keys.sh
+
 # Rebuild Docker images
 docker-compose build
 
@@ -10,12 +18,6 @@ docker-compose build
 docker-compose up -d &
 
 echo "Docker Compose rebuild and restart completed."
-
-containers=("hmi1" "plc1" "plc2" "wrapper_hmi1" "wrapper_plc1" "wrapper_plc2")
-
-for container in "${containers[@]}"; do
-    pkill -f "docker exec -ti ${container} bash"
-done
 
 sleep 10  
 

@@ -3,6 +3,8 @@ from encryption import encrypt, decrypt, read_key
 
 from scapy.all import *
 from scapy.contrib.modbus import ModbusADURequest, ModbusADUResponse
+from pyJoules.energy_meter import measure_energy
+from pyJoules.handler.csv_handler import CSVHandler
 
 import binascii
 import os
@@ -16,6 +18,9 @@ PRIVATE_KEY = '' # Wrapper's private key
 
 WRAPPER_MAC = Ether().src
 WRAPPER_IP = get_if_addr("eth0")
+wrapper_id = WRAPPER_IP.split(".")[-1]
+
+csv_handler = CSVHandler('./performance/fun_wrapper_cons_' + wrapper_id + '.csv')
 
 PKEY_MAPPINGS = {} # client_ip:RsaKey
 
@@ -66,7 +71,6 @@ def update_timings(pkt, sent_time, exec_time):
     packets.append(packet_timings)
 
 def write_log():
-    wrapper_id = WRAPPER_IP.split(".")[-1]
     log_filename = './performance/log_' + wrapper_id + '.json'
     with open(log_filename, 'w') as log_file:
         print("\nWriting log as " + log_filename)
@@ -80,6 +84,10 @@ def write_log():
 #   The client only needs to decrypt the payload. All other information is already visible
 #   Checksums are calculated before packet is sent
 def proxy(client, group):
+    # Sniffer expects a function with a single argument to which it passes the sniffed packet
+    # This function is defined inside another, which we use to pass additional arguments.
+    # Finally we return the internal function that the Sniffer expects
+    @measure_energy(handler=csv_handler)
     def wrapper(packet):
         start_time = time.perf_counter()
         packet.show()
@@ -256,6 +264,8 @@ def main():
     except KeyboardInterrupt:
         sniffer.stop()
         write_log()
+        print("Writing energy consumption results as CSV")
+        csv_handler.save_data()
         # for target_ip in mitm.HOST_LIST.keys():
         #     if target_ip != CLIENT_IP:
         #         mitm.restore_tables(CLIENT_IP, target_ip)
