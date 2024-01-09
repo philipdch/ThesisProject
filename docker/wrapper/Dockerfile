@@ -12,13 +12,14 @@ RUN apt-get update && apt-get install -y \
 # Create a directory for the application code
 RUN mkdir -p /code
 
-# Copy the Python scripts into the container
+# Copy scripts into the container
 COPY ./code/wrapper /code
+COPY ./code/ip_list.txt /code
+COPY ./code/ping.sh /code
 
 # Set the working directory
 WORKDIR /code
 
 RUN pip3 install -r requirements.txt
 
-# Prevent container from exiting
 CMD ["tail", "-f", "/dev/null"]

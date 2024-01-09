@@ -6,8 +6,6 @@ services:
       dockerfile: ./docker/hmi/Dockerfile
     container_name: hmi1
     privileged: true
-    volumes:
-      - ./code/hmi:/code
     mac_address: 02:42:ac:10:ee:7a
     networks:
       devnet:
@@ -19,8 +17,6 @@ services:
       dockerfile: ./docker/hmi/Dockerfile
     container_name: hmi2
     privileged: true
-    volumes:
-      - ./code/hmi:/code
     mac_address: 02:42:ac:10:ee:7b
     networks:
       devnet:
@@ -32,8 +28,6 @@ services:
       dockerfile: ./docker/hmi/Dockerfile
     container_name: hmi3
     privileged: true
-    volumes:
-      - ./code/hmi:/code
     mac_address: 02:42:ac:10:ee:7c
     networks:
       devnet:

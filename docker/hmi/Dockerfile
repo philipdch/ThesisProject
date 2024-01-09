@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y \
 RUN mkdir -p /code
 
 COPY ./code/hmi /code
+COPY ./code/ip_list.txt /code
+COPY ./code/ping.sh /code
 
 WORKDIR /code
 RUN pip3 install -r requirements.txt

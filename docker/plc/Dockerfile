@@ -13,8 +13,10 @@ RUN apt-get update && apt-get install -y \
 # Create a directory for the application code
 RUN mkdir -p /code
 
-# Copy the Python scripts into the container
+# Copy scripts into the container
 COPY ./code/plc /code
+COPY ./code/ip_list.txt /code
+COPY ./code/ping.sh /code
 
 # Set the working directory
 WORKDIR /code
