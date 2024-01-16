@@ -1,1 +1,2 @@
 pymodbus
+dnp3-python
