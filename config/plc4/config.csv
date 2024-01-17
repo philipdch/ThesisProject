@@ -1,0 +1,5 @@
+register_type,start_address,values,comments
+co,0,"0,0","Drain Tank, Tank Output Valve On/Off"
+di,10001,"0,1","Tank Overflow, Valve On/Off, "
+ir,30001,"16614,26214,16358,26214,17026,0,17070,0","Water Level (32-bits), Water Flow Rate (32-bits), Water Temperature (32-bits), Water Alkalinity (32-bits)"
+hr,40001,"16614,26214,16416,0,17030,0,17096,0","Set Tank Water Level (32-bits), Set Tank Flow Rate (32-bits), Set Water Temperature (32-bits), Water Alkalinity (32-bits)"

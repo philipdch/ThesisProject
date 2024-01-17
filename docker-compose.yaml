@@ -5,6 +5,8 @@ services:
       context: .
       dockerfile: ./docker/hmi/Dockerfile
     container_name: hmi1
+    volumes:
+      - ./config/hmi1:/code/config
     privileged: true
     mac_address: 02:42:ac:10:ee:7a
     networks:
@@ -16,6 +18,8 @@ services:
       context: .
       dockerfile: ./docker/hmi/Dockerfile
     container_name: hmi2
+    volumes:
+      - ./config/hmi2:/code/config
     privileged: true
     mac_address: 02:42:ac:10:ee:7b
     networks:
@@ -27,6 +31,8 @@ services:
       context: .
       dockerfile: ./docker/hmi/Dockerfile
     container_name: hmi3
+    volumes:
+      - ./config/hmi3:/code/config
     privileged: true
     mac_address: 02:42:ac:10:ee:7c
     networks:
@@ -40,6 +46,7 @@ services:
     container_name: plc1
     volumes:
       - ./code/plc:/code
+      - ./config/plc1:/code/config
     privileged: true
     mac_address: 02:42:ac:10:ee:70
     networks:
@@ -53,6 +60,7 @@ services:
     container_name: plc2
     volumes:
       - ./code/plc:/code
+      - ./config/plc2:/code/config
     privileged: true
     mac_address: 02:42:ac:10:ee:71
     networks:
@@ -66,6 +74,7 @@ services:
     container_name: plc3
     volumes:
       - ./code/plc:/code
+      - ./config/plc3:/code/config
     privileged: true
     mac_address: 02:42:ac:10:ee:72
     networks:
@@ -79,6 +88,7 @@ services:
     container_name: plc4
     volumes:
       - ./code/plc:/code
+      - ./config/plc4:/code/config
     privileged: true
     mac_address: 02:42:ac:10:ee:73
     networks:
@@ -92,6 +102,7 @@ services:
     container_name: plc5
     volumes:
       - ./code/plc:/code
+      - ./config/plc5:/code/config
     privileged: true
     mac_address: 02:42:ac:10:ee:74
     networks:

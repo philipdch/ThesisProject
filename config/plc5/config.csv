@@ -1,0 +1,5 @@
+register_type,start_address,values,comments
+co,0,"1,1","Battery Charge On/Off, Inverter Start/Stop"
+di,10001,"1,1,1","Battery Charge Status, Panel Status, Inverter Status"
+ir,30001,"17070,0,17558,0,17244,0","Panel Efficiency (32-bits), Output Power (32-bits), Battery Voltage (32-bits)"
+hr,40001,"16896,0,17146,0","Set Panel Tilt (32-bits), Set Battery Charge Level (32-bits)"

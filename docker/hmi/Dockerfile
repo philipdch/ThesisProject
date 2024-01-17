@@ -21,7 +21,4 @@ COPY ./code/ping.sh /code
 WORKDIR /code
 RUN pip3 install -r requirements.txt
 
-WORKDIR /code/rodbus
-RUN cargo build
-
 CMD ["tail", "-f", "/dev/null"]

@@ -1,0 +1,5 @@
+register_type,start_address,values,comments
+co,0,1,Motor Start/Stop
+di,10001,"0,0","Motor Overheated, Emergency Stop"
+ir,30001,"16441,39322,17244,0","Current (32-bit), Voltage (32-bit)"
+hr,40001,"17633,16339,13107","Set Motor Speed (RPM) (16-bit), Set Motor Acceleration (32-bit)"

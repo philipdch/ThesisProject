@@ -1,0 +1,5 @@
+register_type,start_address,values,comments
+co,0,"1,1","Boiler On/Off, Water valve On/Off"
+di,10001,"1,0","Power Status, Safety Lock"
+ir,30001,"17018,52429,16281,39322,16672,0","Current temp, Current Pressure, Water Flow Rate L/m (32-bits), "
+hr,40001,"17027,0,16320,0,16840,0","Set temperature (32-bits), Set pressure (32-bits), water level (32-bits)"
