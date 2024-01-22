@@ -47,5 +47,5 @@ def one_way_poison(client_ip, target_ip):
 
 def restore_tables(client_ip, target_ip):
     print("Restoring ARP cache in targets " + target_ip + "<==>" + client_ip)
-    s.send(ARP(op = 2, pdst = target_ip, psrc = client_ip, hwdst = "ff:ff:ff:ff:ff:ff", hwsrc = HOST_LIST[client_ip]), count = 7)
-    s.send(ARP(op = 2, pdst = client_ip, psrc = target_ip, hwdst = "ff:ff:ff:ff:ff:ff", hwsrc = HOST_LIST[target_ip]), count = 7)
+    send(ARP(op = 2, pdst = target_ip, psrc = client_ip, hwdst = "ff:ff:ff:ff:ff:ff", hwsrc = HOST_LIST[client_ip]), count = 7)
+    send(ARP(op = 2, pdst = client_ip, psrc = target_ip, hwdst = "ff:ff:ff:ff:ff:ff", hwsrc = HOST_LIST[target_ip]), count = 7)

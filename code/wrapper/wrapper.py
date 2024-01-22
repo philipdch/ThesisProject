@@ -266,9 +266,9 @@ def main():
         write_log()
         print("Writing energy consumption results as CSV")
         csv_handler.save_data()
-        # for target_ip in mitm.HOST_LIST.keys():
-        #     if target_ip != CLIENT_IP:
-        #         mitm.restore_tables(CLIENT_IP, target_ip)
+        for target_ip in mitm.HOST_LIST.keys():
+            if target_ip != client_ip:
+                mitm.restore_tables(client_ip, target_ip)
 
 if __name__=="__main__":
     main()

@@ -2,3 +2,4 @@ scapy
 cryptography
 pycryptodome
 pyjoules
+xxhash
