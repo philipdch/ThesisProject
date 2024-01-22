@@ -1,15 +1,46 @@
 import sys 
 import os
 import json
+import csv
 import matplotlib.pyplot as plt
 import numpy as np
+import argparse
 
-def read_data(filepath):
+PLOT_ID = ""
+
+def read_data(filepath, plot_type):
     with open(filepath, 'r') as file:
-        data = json.load(file)
-    return data
+        filename, extension = os.path.splitext(filepath)
+        if extension == ".json":
+            data = json.load(file)
+        elif extension == ".csv":
+            data = csv.reader(file, delimiter=';')
+            next(data, None)
+        if(plot_type == 'time'):
+            return plot_time(data)
+        elif(plot_type == 'energy'):
+            return plot_energy(data)
+    return None
 
-def create_graph(data, plot_id):
+def plot_energy(data):
+    pkts = []
+    func_duration = []
+    energy_consumption = []
+    
+    i=0
+    for row in data:
+        if len(row) < 6:
+            break
+
+        duration = round(1000 * float(row[2]), 2)
+        if(duration >= 1):
+            pkts.append(i)
+            i = i + 1
+            func_duration.append(duration)
+            energy_consumption.append(row[3])
+    return (np.array(pkts), np.array(func_duration), np.array(energy_consumption).astype(np.double))
+
+def plot_time(data):
     pkts = []
     exec_times = []
     proc_times = []
@@ -29,40 +60,51 @@ def create_graph(data, plot_id):
         time_diff = round(1000 * (sent_time - received_time), 2)
         proc_times.append(time_diff)
 
-    packets = np.array(pkts)
-    execution_times = np.array(exec_times)
-    processing_times = np.array(proc_times)
+    return (np.array(pkts), np.array(proc_times), np.array(exec_times))
 
-    max = np.nanmax(np.maximum(execution_times, processing_times))
-    max = np.ceil(max / 5) * 5 + 10
+def create_graph(data, plot_type):
+    if(plot_type == "time"):
+        y1label = 'Wrapper Execution Time (ms)'
+        y2label = 'Packet Processing Time (ms)'
+        title = 'Packet Processing and Execution Times'
+    elif(plot_type == "energy"):
+        y1label = 'Function Duration (ms)'
+        y2label = 'Energy Consumption'
+        title = "Function Execution Durations and Consumed Energy"
 
-    processing_avg = np.average(processing_times)
-
-    # Plotting the data
-    fig, exec_axis = plt.subplots()
-    exec_axis.plot(packets, execution_times, 'go--', label='Wrapper Execution Time (ms)')
-    exec_axis.set_xlabel('Packet ID')
-    exec_axis.set_ylabel('Wrapper Execution Time (ms)', color='g')
-    exec_axis.tick_params('y', colors='g')
-
-    exec_axis.text(0.5, 0.95, f'Avg Processing Time: {processing_avg:.2f} ms', transform=exec_axis.transAxes, ha='center', va='center', color='r')
-
-    pkt_times_axis = exec_axis.twinx()
-    pkt_times_axis.plot(packets, processing_times, 'bo--', label='Pcket Processing Time (ms)')
-    pkt_times_axis.set_ylabel('Packet Processing Time (ms)', color='b')
-    pkt_times_axis.tick_params('y', colors='b')
-
-    exec_axis.set_ylim(0, max)
-    pkt_times_axis.set_ylim(0, max)
-
-    plt.title('Packet Processing and Execution Times')
-
+    packets = data[0]
     print(packets)
-    print(execution_times)
-    print(processing_times)
+    print(data[1])
+    print(data[2])
+    processing_avg = np.average(data[1])
 
+    fig, (axis1, axis2) = plt.subplots(2, 1, gridspec_kw={'hspace': 0.5})
+    axis1.plot(packets, data[1], 'go--')
+    axis1.set_xlabel("Packet ID")
+    axis1.set_ylabel(y1label, color='g')
+    axis1.tick_params('y', colors='g')
+    axis1.legend()
+
+    axis1.text(0.5, 0.95, f'Avg Processing Time: {processing_avg:.2f} ms', transform=axis1.transAxes, ha='center', va='center', color='r')
+
+    axis2.plot(packets, data[2], 'bo--')
+    axis2.set_xlabel("Packet ID")
+    axis2.set_ylabel(y2label, color='b')
+    axis2.tick_params('y', colors='b')
+    axis2.legend()
+    
+    y1max = np.ceil(np.nanmax(data[1]) / 5) * 5 + 20
+    y2max = np.ceil(np.nanmax(data[2]) / 5) * 5 + 20
+    axis1.set_ylim(0, y1max)
+    axis2.set_ylim(0, y2max)
+
+    fig.suptitle(title)
+
+    save_plot(plot_type)
+
+def save_plot(plot_name):
     current_dir = os.path.dirname(os.path.realpath(__file__))
-    filename = "plot_" + plot_id + ".png"
+    filename = plot_name + "_plot_" + PLOT_ID + ".png"
     subdir_path = os.path.join(current_dir, 'plots')
     if not os.path.exists(subdir_path):
         os.makedirs(subdir_path)
@@ -75,16 +117,24 @@ def create_graph(data, plot_id):
         print("Could not save plot")
 
 def main():
-    if len(sys.argv) != 2:
-        print("You must specify the json file from which to read plot data")
-        sys.exit(1)
+    plot_map = {0: 'time', 1: 'energy'}
 
-    filepath = sys.argv[1]
+    parser = argparse.ArgumentParser(description='Plot data based on given file.')
+
+    parser.add_argument('-f', '--file', required=True, help='Data file.')
+    parser.add_argument('-t', '--type', type=int, choices=[0, 1], required=True, help='Specify plot type (0=time, 1=energy).')
+
+    args = parser.parse_args()
+
+    filepath = args.file
+    plot_type = plot_map[args.type]
+
     try:
-        data = read_data(filepath)
         file = os.path.split(filepath)[1] 
-        plot_id = file.split('_')[1].split('.')[0]
-        create_graph(data, plot_id)
+        global PLOT_ID
+        PLOT_ID = file.split('_')[-1].split('.')[0]
+        data = read_data(filepath, plot_type)
+        create_graph(data, plot_type)
     except FileNotFoundError:
         print("File " + filepath + " not found.")
     except json.JSONDecodeError:
