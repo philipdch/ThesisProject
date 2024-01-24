@@ -97,20 +97,20 @@ def proxy(client, group):
 
         # Scapy sniffs all packets passing through an interface, including the ones it sends. 
         # We need to discard the packets that we just sent with scapy to prvent infinite loop processing
-        if packet.haslayer('Ether') and packet['Ether'].src == WRAPPER_MAC:
-            print("Picked up own packet. Dropping")
-            return
+        # if packet.haslayer('Ether') and packet['Ether'].src == WRAPPER_MAC:
+        #     print("Picked up own packet. Dropping")
+        #     return
 
-        if not packet.haslayer('IP'):
-            return
+        # if not packet.haslayer('IP'):
+        #     return
         
         new_packet = packet['IP']
         sip, dip = packet['IP'].src, packet['IP'].dst
 
         # Process only packets that have a TCP or UDP layer, commonly used for every application protocol we examanied
-        if (not packet.haslayer('TCP')) and (not packet.haslayer('UDP')):
-            print("Packet doesn't have TCP or UDP layer")
-            return
+        # if (not packet.haslayer('TCP')) and (not packet.haslayer('UDP')):
+        #     print("Packet doesn't have TCP or UDP layer")
+        #     return
 
         transport_proto = TRANSPORT_PROTOCOLS[packet['IP'].proto] # Get the transport layer protocol 
         payload = bytes(packet[transport_proto].payload)
@@ -261,7 +261,8 @@ def main():
     print("Targets poisoned successfully")
 
     try:
-        sniffer = AsyncSniffer(prn=proxy(client_ip, group)) #Use AsyncSniffer which doesn't block
+        bpf = f"(udp or tcp) and ether src not {WRAPPER_MAC}" # Filter packets on the OS level to improve performance
+        sniffer = AsyncSniffer(prn=proxy(client_ip, group), filter=bpf, store=False) #Use AsyncSniffer which doesn't block
         sniffer.start()
         sniffer.join()
     except KeyboardInterrupt:
