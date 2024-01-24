@@ -15,8 +15,8 @@ for i in {0..7}; do
     if [ ! -f "$private_key" ]; then
         # Generate the key pair if it doesn't exist
         ssh-keygen -t rsa -b 2048 -f "$private_key" -N ''
+        mv "$ssh_dir/id_rsa.pub" ".ssh/common/$public_key"
     else
         echo "Key pair for ${wrappers[i]} already exists."
     fi
-    mv "$ssh_dir/id_rsa.pub" ".ssh/common/$public_key"
 done

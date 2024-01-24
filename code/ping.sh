@@ -1,6 +1,6 @@
 #!/bin/bash
 
-ATTEMPTS=5
+ATTEMPTS=10
 IP_FILE="./ip_list.txt"
 
 trap 'echo -e "Exiting"; exit 1' SIGINT
@@ -29,7 +29,7 @@ if [ "$#" -eq 1 ]; then
     fi
     attempts=$1
 else
-    attempts=$DEFAULT_ATTEMPTS
+    attempts=$ATTEMPTS
 fi
 
 for ip in "${DESTINATIONS[@]}"; do
