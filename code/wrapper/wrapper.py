@@ -12,6 +12,9 @@ import argparse
 import json
 import time
 
+l2_socket = conf.L2socket(iface='eth0')
+l3_socket = conf.L3socket(iface='eth0')
+
 packets = []
     
 PRIVATE_KEY = '' # Wrapper's private key
@@ -130,7 +133,7 @@ def proxy(client, group):
                 print('Forwarding RST only to original destination.')
                 del new_packet['IP'].chksum
                 del new_packet[transport_proto].chksum
-                send(new_packet, verbose = False)
+                l3_socket.send(new_packet)
                 sent_time = time.time()
                 update_timings(new_packet, sent_time, None)
                 return
@@ -155,7 +158,7 @@ def proxy(client, group):
                 # Send a packet with Node target's IP, but its Wrapper's MAC. 
                 # This eliminates the need to poison wrappers, as each wrapper can directly
                 # send packets to other wrappers, while still preserving their transparency
-                sendp(Ether(dst = mitm.HOST_LIST[wrapper])/new_packet, verbose=False)
+                l2_socket.send(Ether(dst = mitm.HOST_LIST[wrapper])/new_packet)
                 sent_time = time.time()
                 update_timings(new_packet, sent_time, None)
         elif dip == client:
@@ -186,7 +189,7 @@ def proxy(client, group):
 
             new_packet.show()
             # Don't need to use layer 2 send. Wrapper already knows its node's correct MAC
-            send(new_packet, verbose = False)
+            l3_socket.send(new_packet)
             sent_time = time.time()
 
         end_time = time.perf_counter()
