@@ -30,10 +30,10 @@ def plot_energy(data):
     i=0
     for row in data:
         if len(row) < 6:
-            break
+            continue
 
         duration = round(1000 * float(row[2]), 2)
-        if(duration >= 1):
+        if(duration >= 2):
             pkts.append(i)
             i = i + 1
             func_duration.append(duration)
