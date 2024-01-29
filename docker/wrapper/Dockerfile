@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     net-tools \
+    nano \
     libpcap0.8 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
