@@ -16,7 +16,7 @@ PROTOCOLS = {
     89: "OSPF",   # Open Shortest Path First (OSPF) Protocol
 }
 
-ip_cache = {}
+ip_cache = {} # ip_string:ip_bytes
 
 ################################################################[ IP HEADER ]################################################################
 # Octet|                0 	        |              1 	             |                 2 	            |                 3                 #
@@ -56,11 +56,28 @@ ip_cache = {}
 #       |                      Data                         #
 ############################################################# 
 
-# Custom class to construct an IP packet with only the minimum information necessary to
-# be processed by a wrapper. This is NOT a complete representation of an IP packet and 
-# instead contains only the fields, methods and checks required by our application to improve
-# performance by allowing faster processing.
 class IPPacket:
+    '''Custom IP packet represetation. Contains only the minimum information necessary to allow
+    fast processing and thus is not a complete representation of all the layers contained 
+    within the packet.
+
+    Args:
+        raw_packet (bytes): Byte representation of an IP packet
+
+    Attributes:
+        version_ihl (int): Internet Protocol Version
+        ihl (int): Length of IP header
+        total_length (int): Length of IP packet, including header and data
+        protocol (int): Protocol encapsulated in the IP packet
+        src_ip (string): Source Address
+        dest_ip (string): Destination Address
+        checksum (bytes): Packet checsum
+        payload (bytes): Data portion of the packet (includes transport layer header)
+    
+    Raises:
+        ValueError: If the transport protocol is neither "TCP" nor "UDP".
+    '''
+
     def __init__(self, raw_packet):
         self.version_ihl = raw_packet[0] >> 4 
         self.ihl = (raw_packet[0] & 0x0F) * 4 # Internet Header Length, measured in 32-bit words or 4 Byte increments. We multiply by 4 since our packet is stored as a bytearray
@@ -71,6 +88,16 @@ class IPPacket:
         self.dest_ip = dip
         self.checksum = raw_packet[10:12]
         self.payload = raw_packet[self.ihl:]
+        
+        # Process only TCP or UDP packets to avoid unecessary processing
+        # of ICMP or similar messages that shouldn't be forwarded by our
+        # application
+        if self.protocol == "TCP":
+            self.data_offset = ((self.payload[12] >> 4) * 4)
+        elif self.protocol == "UDP":
+            self.data_offset = 8
+        else:
+            raise ValueError("Only TCP or UDP payloads are supported")
 
         self.raw= raw_packet
 
@@ -81,46 +108,66 @@ class IPPacket:
         self.raw[16:20] = ip_cache.get(new_ip, ip_to_bytes(new_ip))
 
     def get_transport_payload(self):
-        if self.protocol == "TCP":
-            data_offset = (self.payload[12] >> 4) * 4
-            return self.payload[data_offset:]
-        elif self.protocol == "UDP":
-            return self.payload[8:]
+        return self.payload[self.data_offset:]
 
     def set_transport_payload(self, new_payload):
-        if self.protocol == "TCP":
-            data_offset = self.ihl + ((self.payload[12] >> 4) * 4)
-            self.raw[data_offset:] = new_payload
-        elif self.protocol == "UDP":
-            self.raw[self.ihl + 8:] = new_payload
+        self.raw[self.ihl + self.data_offset:] = new_payload
 
     def reset_checksum(self):
-        self.raw[10:12] = self.ip_checksum().to_bytes(2, byteorder='big') # Delete IP checksum, causing it to be recalculated when the packet is sent
+        ''' Reset and re-calculate IP and Transport Layer (TCP/UDP) checksums.
+
+        The checksums should be manually resetted every time the packet is ready to be sent.
+        Failure to calculate the checksums will cause the packet to be dropped by the Kernel,
+        even though the "send" function may report the transmission to be successful (since 
+        the Transport Layer and below are handled separately by the Kernel).
+        '''
+
+        self.raw[10:12] = self.__ip_checksum().to_bytes(2, byteorder='big') # Delete IP checksum, causing it to be recalculated when the packet is sent
         self.checksum = self.raw[10:12]
         self.total_length = int.from_bytes(self.raw[2:4], byteorder='big', signed=False)
-        self.transport_checksum()
+        self.__transport_checksum()
         self.payload = self.raw[self.ihl:]
 
-    def calc_checksum(self, data):
+    def __calc_checksum(self, data):
+        ''' Generic 16-bit one's complement checksum calculation.
+
+        The checksum is defined as the 16 bit one's complement of the one's
+        complement sum of all 16 bit words in the provided data. Simply put,
+        it is the sum of all 2-byte words in 1's complement represenation.
+        '''
+
         if len(data) % 2 != 0:
             data += b'\x00'  # Pad with zero if the length is odd
 
         chksum = 0
         for i in range(0, len(data), 2):
-            word = (data[i] << 8) | data[i + 1]
+            word = (data[i] << 8) | data[i + 1] # Get 16-bit word
             chksum += word
 
-        chksum = (chksum >> 16) + (chksum & 0xFFFF)
-        chksum = ~chksum & 0xFFFF
+        chksum = (chksum >> 16) + (chksum & 0xFFFF) # Add end-around carry back to the result, if it occurs
+        chksum = ~chksum & 0xFFFF # Convert result to 16-bit 1's complement 
         return chksum
 
-    def ip_checksum(self):
+    def __ip_checksum(self):
+        ''' Calculate the checksum of the IP header, as described in RFC 791.
+
+        The IP checksum is calculated only on the IP header, by setting the
+        checksum to zero prior to the calculation.
+        '''
+
         self.raw[10:12] = b'\x00\x00' #Set checksum to 0 before calculation
         self.raw[2:4] = len(self.raw).to_bytes(2, byteorder='big', signed=False) # Update IP total length
         print(f'IP Header = {binascii.hexlify(self.raw[:self.ihl])}')
-        return self.calc_checksum(self.raw[:self.ihl])
+        return self.__calc_checksum(self.raw[:self.ihl])
 
-    def transport_checksum(self):
+    def __transport_checksum(self):
+        ''' Calculate the TCP or UDP checksum as defined RFC 9293 or RFC 768 respectively.
+
+        The checksum is calculated on the pseudo-header of each protocol and set to zero 
+        before the calculation. In the case of UDP, the segment's length is re-calculated 
+        to account for changes in the payload.
+        '''
+
         src_ip = self.raw[12:16]
         dest_ip = self.raw[16:20]
         if self.protocol == "TCP":
@@ -143,7 +190,7 @@ class IPPacket:
         protocol_header = self.raw[self.ihl:self.ihl + header_length]
         pseudo_header = pseudo_header + protocol_header + data
         print(f'PSEUDO HEADER = {binascii.hexlify(pseudo_header)}')
-        self.raw[chksum_offset:chksum_offset+2] = self.calc_checksum(pseudo_header).to_bytes(2, byteorder='big')
+        self.raw[chksum_offset:chksum_offset+2] = self.__calc_checksum(pseudo_header).to_bytes(2, byteorder='big')
 
 
     def __str__(self):
@@ -160,10 +207,12 @@ class IPPacket:
         )
 
 def ip_to_bytes(ip):
+    ''' Convert string representation of IP to bytes '''
     bytes_ip = socket.inet_aton(ip)
-    ip_cache[ip] = bytes_ip
+    ip_cache[ip] = bytes_ip # Cache result
     return bytes_ip
 
 def bytes_to_ip(bytes_ip):
+    ''' Convert byte representation of IP to string '''
     ip = socket.inet_ntoa(bytes_ip)
     return ip
