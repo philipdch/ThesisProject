@@ -1,29 +1,51 @@
 #!/bin/bash
 
-usage() {
-    echo "Usage: $0 [plc1_comm] [plc2_comm]"
-    echo "Where 'plcn_comm' is the communication mode of the nth PLC (tcp' or 'udp')"
-    exit 1
+groups_file="./config/servers"
+config_file="plc_config.json"
+
+if [ ! -f $groups_file ]; then
+    echo "Error: File '${groups_file}' not found"
+fi
+
+if [ ! -f $config_file ]; then
+    echo "Error: File '{$config_file}' not found"
+fi
+
+send_requests() {
+    for request in "${requests[@]}"; do
+        echo "${request}"
+        eval "${request}"
+    done
 }
 
-if [ "$#" -ne 2 ]; then
-    usage
-    exit 1
-fi
+IFS=',' read -r -a ip_addresses <<< "$(cat "$groups_file")"
+requests=()
+for ip_address in "${ip_addresses[@]}"; do
+    echo "${ip_address}"
+    registers=$(jq -r ".plcs[\"${ip_address}\"].registers" "${config_file}")
+    comm=$(jq -r ".plcs[\"${ip_address}\"].comm" "${config_file}")
 
-PLC1_COMM="$1"
-PLC2_COMM="$2"
+    IFS=$'\n' read -r -d '' -a register_array <<< "$(echo "${registers}" | jq -r 'to_entries[] | "\(.key):\(.value)"')"
+    for register in "${register_array[@]}"; do
+        IFS=':' read -r register_name quantity start <<< "$register"
+        start=$((start))
+        quantity=$((quantity))
+        echo "${register_name}", "${start}", "${quantity}"
 
-valid_protocols=("udp" "tcp")
-if [[ ! " ${valid_protocols[@]} " =~ " $PLC1_COMM " || ! " ${valid_protocols[@]} " =~ " $PLC2_COMM " ]]; then
-    echo "plc1_comm and plc2_comm must be either udp or tcp"
-    exit 1
-fi
+        case "${register_name}" in
+            "co") command="rc" ;;
+            "di") command="rdi" ;;
+            "ir") command="rir" ;;
+            "hr") command="rhr" ;;
+            *) echo "Unknown register: ${register_name}"; continue ;;
+        esac
 
-while :; do     
-    python3 client.py -c "$PLC1_COMM" --host 172.16.238.120 --port 502 rc --quantity 1 --start 0
-    python3 client.py -c "$PLC1_COMM" --host 172.16.238.120 --port 502 rhr --quantity 4 --start 40001
-    python3 client.py -c "$PLC2_COMM" --host 172.16.238.121 --port 502 rdi --quantity 1 --start 10001
-    python3 client.py -c "$PLC2_COMM" --host 172.16.238.121 --port 502 rir --quantity 3 --start 30001
+        requests+=("python3 client.py -c ${comm} --host ${ip_address} --port 502 ${command} --quantity ${quantity} --start ${start}")
+    done
+done
+
+while : ; do
+    send_requests "${requests[@]}"
     sleep 1
 done
+
