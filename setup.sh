@@ -3,7 +3,7 @@
 # Stop and remove existing containers
 docker-compose down
 
-containers=("hmi1" "plc1" "plc2")
+containers=("hmi1" "hmi2" "hmi3" "plc1" "plc2" "plc3" "plc4" "plc5")
 
 for container in "${containers[@]}"; do
     pkill -f "docker exec -ti ${container} bash"
@@ -25,9 +25,10 @@ sleep 10
 
 # Launch bash for the containers we wish to test our implementation on
 for container in "${containers[@]}"; do
-    command="docker exec -ti ${container} bash"
-    gnome-terminal -- bash -c "$command; read -p 'Press Enter to close this terminal...'"
-
+    if [[ ! "${container}" =~ "plc" ]]; then
+        command="docker exec -ti ${container} bash"
+        gnome-terminal -- bash -c "$command; read -p 'Press Enter to close this terminal...'"
+    fi
     wrapper="wrapper_${container}"
     command="docker exec -ti ${wrapper} bash"
     gnome-terminal -- bash -c "$command; read -p 'Press Enter to close this terminal...'"

@@ -69,6 +69,11 @@ def write_log():
         json.dump(packets, log_file)
         print("Log saved")
 
+def cleanup(client_ip):
+    for target_ip in mitm.host_list.keys():
+        if target_ip != client_ip:
+            mitm.restore_tables(client_ip, target_ip)
+
 def proxy(client, group):
     '''Handles a sniffed packet: Encrypts or decrypts the transport layer payload (TCP or UDP), and forwards it.
 
@@ -197,26 +202,15 @@ def proxy(client, group):
         end_time = time.perf_counter()
         execution_time = end_time - start_time # The time it took for the wrapper to execute after receiving a (valid) packet 
         if (packets and packets[-1]['func_exec_time'] is None):
-                # If execeution time of last packet is none, packet belongs to the list of packets forwarded to a group.
-                # Execution time is calculated and assigned to the last packet forwarded
+                # If execeution time of last packet is none, the packet belongs to the list of packets forwarded to a group.
+                # Execution time is calculated and assigned to the last forwarded packet.
                 packets[-1]['func_exec_time'] = execution_time
         else:
             update_timings(ip_packet.raw, received_time, sent_time, execution_time)
 
     return wrapper
 
-def main():
-    parser = argparse.ArgumentParser(prog="Wrapper", 
-                                     description='Wrapper that acts as a transparent proxy. Intercepts packets from the client \
-                                        processes them and forwards them to the wrapper\'s group where they will be \
-                                        intercepted again by the corresponding wrapper'
-                                    )
-    # parser.add_argument('--cip', dest='client_ip', required=True, help="Client's IP address")
-
-    parser.add_argument('--gid', dest='group_number', required=True, help="Wrapper's group id. Must be defined in the 'groups.json' file")
-
-    args = parser.parse_args()
-
+def main(args):
     # client_ip = args.client_ip
     gid = args.group_number
     client_ip = os.environ['CLIENT']
@@ -248,18 +242,20 @@ def main():
             key_name = PKEY_MAPPINGS[host]
             key_path = os.path.join(public_keys_path, key_name)
             PKEY_MAPPINGS[host] = load_pub_key(key_path)
+        if args.mitm:
+            if host != client_ip:
+                # If the target is not a wrapper we need to one-way poison it so that only
+                #   our client forwards traffic intended for them through us, but we don't change 
+                #   the target node's arp cache, since another wrapper is responsible for it
+                # Otherwise, we need to poison the client and the target, in order to appear
+                #   transparent to both of them.
+                if host not in mitm.WRAPPER_MAPPINGS:
+                    mitm.one_way_poison(client_ip, host)
+                else:
+                    mitm.arp_poison(client_ip, host)
 
-        if host != client_ip:
-            # If the target is not a wrapper we need to one-way poison it so that only
-            #   our client forwards traffic intended for them through us, but we don't change 
-            #   the target node's arp cache, since another wrapper is responsible for it
-            # Otherwise, we need to poison the client and the target, in order to appear
-            #   transparent to both of them.
-            if host not in mitm.WRAPPER_MAPPINGS:
-                mitm.one_way_poison(client_ip, host)
-            else:
-                mitm.arp_poison(client_ip, host)
-    print("Targets poisoned successfully")
+    if args.mitm:
+        print("Targets poisoned successfully")
 
     try:
         conf.layers.filter([Ether]) # Specify which layers will be dissected by scapy. More layers increase the delay needed to process a packet
@@ -273,9 +269,19 @@ def main():
         write_log()
         print("Writing energy consumption results as CSV")
         csv_handler.save_data()
-        # for target_ip in mitm.host_list.keys():
-        #     if target_ip != client_ip:
-        #         mitm.restore_tables(client_ip, target_ip)
+        if args.mitm:
+            cleanup(client_ip)
 
 if __name__=="__main__":
-    main()
+    parser = argparse.ArgumentParser(prog="Wrapper", 
+                                     description='Wrapper that acts as a transparent proxy. Given a group of wrappers: \n \
+                                        a) encrypts packets from the client and forwards them to the group, and \n \
+                                        b) Decrypts the packets received from the group and forwards them to the client.'
+                                    )
+
+    parser.add_argument('-g', '--gid', dest='group_number', required=True, help="Wrapper's group id. Must be defined in the 'groups.json' file")
+    parser.add_argument('-c', '--cip', dest='client_ip', help="The IP of the wrapper's client. Only one wrapper may be assigned to a client")
+    parser.add_argument('-m', '--mitm', dest='mitm', help='Poison client to dynamically alter its ARP cache. \
+                                                        Use this option when static ARP entries are not configured')
+    args = parser.parse_args()
+    main(args)

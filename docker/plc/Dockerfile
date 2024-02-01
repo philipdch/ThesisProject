@@ -17,12 +17,13 @@ RUN mkdir -p /code
 COPY ./code/plc /code
 COPY ./code/ip_list.txt /code
 COPY ./code/ping.sh /code
+COPY ./docker/entry.sh /usr/local/bin
 
 # Set the working directory
 WORKDIR /code
 
 # Install Python dependencies
+RUN chmod +x /usr/local/bin/entry.sh
 RUN pip3 install -r requirements.txt
 
-# Define the command to run when the container starts
-CMD ["tail", "-f", "/dev/null"]
+ENTRYPOINT [ "/usr/local/bin/entry.sh" ]

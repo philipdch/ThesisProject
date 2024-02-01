@@ -44,6 +44,7 @@ services:
       context: .
       dockerfile: ./docker/plc/Dockerfile
     container_name: plc1
+    command: ["python3", "plc.py", "-c", "udp", "--host", "172.16.238.120"]
     volumes:
       - ./code/plc:/code
       - ./config/plc1:/code/config
@@ -58,6 +59,7 @@ services:
       context: .
       dockerfile: ./docker/plc/Dockerfile
     container_name: plc2
+    command: ["python3", "plc.py", "-c", "udp", "--host", "172.16.238.121"]
     volumes:
       - ./code/plc:/code
       - ./config/plc2:/code/config
@@ -72,6 +74,7 @@ services:
       context: .
       dockerfile: ./docker/plc/Dockerfile
     container_name: plc3
+    command: ["python3", "plc.py", "-c", "udp", "--host", "172.16.238.122"]
     volumes:
       - ./code/plc:/code
       - ./config/plc3:/code/config
@@ -86,6 +89,7 @@ services:
       context: .
       dockerfile: ./docker/plc/Dockerfile
     container_name: plc4
+    command: ["python3", "plc.py", "-c", "udp", "--host", "172.16.238.123"]
     volumes:
       - ./code/plc:/code
       - ./config/plc4:/code/config
@@ -100,6 +104,7 @@ services:
       context: .
       dockerfile: ./docker/plc/Dockerfile
     container_name: plc5
+    command: ["python3", "plc.py", "-c", "udp", "--host", "172.16.238.124"]
     volumes:
       - ./code/plc:/code
       - ./config/plc5:/code/config
