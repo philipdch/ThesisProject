@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     net-tools \
-    nano \
+    iputils-arping \
     libpcap0.8 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
@@ -18,10 +18,13 @@ RUN mkdir -p /code
 COPY ./code/wrapper /code
 COPY ./code/ip_list.txt /code
 COPY ./code/ping.sh /code
+COPY ./docker/entry.sh /usr/local/bin
 
 # Set the working directory
 WORKDIR /code
 
+RUN chmod +x /usr/local/bin/entry.sh
+RUN chmod +x /code/start.sh
 RUN pip3 install -r requirements.txt
 
-CMD ["tail", "-f", "/dev/null"]
+ENTRYPOINT [ "/usr/local/bin/entry.sh" ]

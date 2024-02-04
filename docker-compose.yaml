@@ -5,6 +5,7 @@ services:
       context: .
       dockerfile: ./docker/hmi/Dockerfile
     container_name: hmi1
+    command: ["tail", "-f", "/dev/null"]
     volumes:
       - ./config/hmi1:/code/config
     privileged: true
@@ -18,6 +19,7 @@ services:
       context: .
       dockerfile: ./docker/hmi/Dockerfile
     container_name: hmi2
+    command: ["tail", "-f", "/dev/null"]
     volumes:
       - ./config/hmi2:/code/config
     privileged: true
@@ -31,6 +33,7 @@ services:
       context: .
       dockerfile: ./docker/hmi/Dockerfile
     container_name: hmi3
+    command: ["tail", "-f", "/dev/null"]
     volumes:
       - ./config/hmi3:/code/config
     privileged: true
@@ -118,7 +121,17 @@ services:
     build: 
       context: .
       dockerfile: ./docker/wrapper/Dockerfile
+    depends_on:
+      - hmi1
+      - hmi2
+      - hmi3
+      - plc1
+      - plc2
+      - plc3
+      - plc4
+      - plc5
     container_name: wrapper_hmi1
+    command: ["./start.sh", "1"]
     volumes:
       - ./code/wrapper:/code
       - ./.ssh/wrapper_hmi1:/.ssh
@@ -136,7 +149,17 @@ services:
     build: 
       context: .
       dockerfile: ./docker/wrapper/Dockerfile
+    depends_on:
+      - hmi1
+      - hmi2
+      - hmi3
+      - plc1
+      - plc2
+      - plc3
+      - plc4
+      - plc5
     container_name: wrapper_hmi2
+    command: ["./start.sh", "2"]
     volumes:
       - ./code/wrapper:/code
       - ./.ssh/wrapper_hmi2:/.ssh
@@ -154,7 +177,17 @@ services:
     build: 
       context: .
       dockerfile: ./docker/wrapper/Dockerfile
+    depends_on:
+      - hmi1
+      - hmi2
+      - hmi3
+      - plc1
+      - plc2
+      - plc3
+      - plc4
+      - plc5
     container_name: wrapper_hmi3
+    command: ["./start.sh", "3"]
     volumes:
       - ./code/wrapper:/code
       - ./.ssh/wrapper_hmi3:/.ssh
@@ -172,7 +205,17 @@ services:
     build: 
       context: .
       dockerfile: ./docker/wrapper/Dockerfile
+    depends_on:
+      - hmi1
+      - hmi2
+      - hmi3
+      - plc1
+      - plc2
+      - plc3
+      - plc4
+      - plc5
     container_name: wrapper_plc1
+    command: ["./start.sh", "4"]
     volumes:
       - ./code/wrapper:/code
       - ./.ssh/wrapper_plc1:/.ssh
@@ -190,7 +233,17 @@ services:
     build: 
       context: .
       dockerfile: ./docker/wrapper/Dockerfile
+    depends_on:
+      - hmi1
+      - hmi2
+      - hmi3
+      - plc1
+      - plc2
+      - plc3
+      - plc4
+      - plc5
     container_name: wrapper_plc2
+    command: ["./start.sh", "4"]
     volumes:
       - ./code/wrapper:/code
       - ./.ssh/wrapper_plc2:/.ssh
@@ -208,7 +261,17 @@ services:
     build: 
       context: .
       dockerfile: ./docker/wrapper/Dockerfile
+    depends_on:
+      - hmi1
+      - hmi2
+      - hmi3
+      - plc1
+      - plc2
+      - plc3
+      - plc4
+      - plc5
     container_name: wrapper_plc3
+    command: ["./start.sh", "6"]
     volumes:
       - ./code/wrapper:/code
       - ./.ssh/wrapper_plc3:/.ssh
@@ -226,7 +289,17 @@ services:
     build: 
       context: .
       dockerfile: ./docker/wrapper/Dockerfile
+    depends_on:
+      - hmi1
+      - hmi2
+      - hmi3
+      - plc1
+      - plc2
+      - plc3
+      - plc4
+      - plc5
     container_name: wrapper_plc4
+    command: ["./start.sh", "6"]
     volumes:
       - ./code/wrapper:/code
       - ./.ssh/wrapper_plc4:/.ssh
@@ -244,7 +317,17 @@ services:
     build: 
       context: .
       dockerfile: ./docker/wrapper/Dockerfile
+    depends_on:
+      - hmi1
+      - hmi2
+      - hmi3
+      - plc1
+      - plc2
+      - plc3
+      - plc4
+      - plc5
     container_name: wrapper_plc5
+    command: ["./start.sh", "6"]
     volumes:
       - ./code/wrapper:/code
       - ./.ssh/wrapper_plc5:/.ssh

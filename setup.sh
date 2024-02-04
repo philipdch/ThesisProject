@@ -29,7 +29,7 @@ for container in "${containers[@]}"; do
         command="docker exec -ti ${container} bash"
         gnome-terminal -- bash -c "$command; read -p 'Press Enter to close this terminal...'"
     fi
-    wrapper="wrapper_${container}"
-    command="docker exec -ti ${wrapper} bash"
-    gnome-terminal -- bash -c "$command; read -p 'Press Enter to close this terminal...'"
+    # wrapper="wrapper_${container}"
+    # command="docker exec -ti ${wrapper} bash"
+    # gnome-terminal -- bash -c "$command; read -p 'Press Enter to close this terminal...'"
 done

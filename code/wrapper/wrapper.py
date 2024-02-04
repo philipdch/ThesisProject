@@ -146,7 +146,8 @@ def proxy(client, group):
                 # Could just drop RST
                 print('Forwarding RST only to original destination.')
                 ip_packet.reset_checksum()
-                eth_frame = Ether(dst = mitm.host_list[ip_packet.dest_ip], type=0x0800)
+                dest_mac = mitm.host_list.get(ip_packet.dest_ip, "ff:ff:ff:ff:ff:ff")
+                eth_frame = Ether(dst = dest_mac, type=0x0800)
                 eth_frame = bytearray(raw(eth_frame)) + ip_packet.raw
                 l2_socket.send(eth_frame)
                 sent_time = time.time()
@@ -154,20 +155,22 @@ def proxy(client, group):
                 return
 
             for wrapper in group:
-                wrapper_client = mitm.WRAPPER_MAPPINGS[wrapper]
-
-                # Avoid forwarding to self
-                if wrapper == WRAPPER_IP:
+                wrapper_mac = mitm.host_list.get(wrapper, None)
+                
+                # Avoid forwarding to self or to unknown destination
+                if (wrapper == WRAPPER_IP) or (not wrapper_mac):
                     continue
+
+                wrapper_client = mitm.WRAPPER_MAPPINGS[wrapper]
                 
                 ip_packet.set_dest_ip(wrapper_client)
-                print("Forwarding to " + wrapper_client + "'s wrapper with MAC: " + mitm.host_list[wrapper])
+                print("Forwarding to " + wrapper_client + "'s wrapper with MAC: " + wrapper_mac)
 
                 # Send a packet with Node target's IP, but its Wrapper's MAC. 
                 # This eliminates the need to poison wrappers, as each wrapper can directly
                 # send packets to other wrappers, while still preserving their transparency
                 ip_packet.reset_checksum()
-                eth_frame = Ether(dst = mitm.host_list[wrapper], type=0x0800)
+                eth_frame = Ether(dst = wrapper_mac, type=0x0800)
                 eth_frame = bytearray(raw(eth_frame)) + ip_packet.raw
                 print(ip_packet)
                 l2_socket.send(eth_frame)
@@ -183,7 +186,6 @@ def proxy(client, group):
             if payload:
                 try:
                     decrypted_payload = decrypt(payload, PRIVATE_KEY)
-                    print(decrypted_payload)
                     ip_packet.set_transport_payload(decrypted_payload)
                 except ValueError as ex:
                     print("Decryption failed: Wrong private key, dropping packet")
@@ -194,11 +196,14 @@ def proxy(client, group):
                 
             ip_packet.reset_checksum()
             print(ip_packet)
-            eth_frame = Ether(dst = mitm.host_list[client], type=0x0800)
+            dest_mac = mitm.host_list.get(client, "ff:ff:ff:ff:ff:ff")
+            eth_frame = Ether(dst = dest_mac, type=0x0800)
             eth_frame = bytearray(raw(eth_frame)) + ip_packet.raw
             l2_socket.send(eth_frame)
             sent_time = time.time()
-
+        else:
+            return
+        
         end_time = time.perf_counter()
         execution_time = end_time - start_time # The time it took for the wrapper to execute after receiving a (valid) packet 
         if (packets and packets[-1]['func_exec_time'] is None):
@@ -234,15 +239,39 @@ def main(args):
         print(f"Error: JSON file not found at {mappings_path}")
     
     # Discover active hosts on the local network
-    mitm.discovery(WRAPPER_IP + "/24")
+    # Note: All hosts must be discovered prior to the execution of the wrapper
+    # Otherwise, various issues may arise (e.g. packet loss due to unknown recipient)
+    if args.mitm:
+        # Discover active hosts dynamically. Slower and may discover hosts outside the application's scope
+        mitm.discovery(WRAPPER_IP + "/24")
+    else:
+        # Discover hosts based on a known list.
+        # Sends as many requests in a specific time window to allow hosts to come up and join the network.
+        # If any host is determined to be unreachable, the wrapper exits
+        for wrapper, client in mitm.WRAPPER_MAPPINGS.items():
+            if(wrapper == WRAPPER_IP):
+                result1 = WRAPPER_MAC
+            else:
+                result1 = mitm.persistent_discovery(wrapper)
+            result2 = mitm.persistent_discovery(client)
 
-    for host in mitm.host_list.keys():
+            if(result1 is None or result2 is None):
+                print("Exiting")
+                return
+            mitm.host_list[wrapper] = result1
+            mitm.host_list[client] = result2
+    print("Hosts:")
+    print(json.dumps(mitm.host_list, indent=2))
+
+    for host in PKEY_MAPPINGS:
         # Read the wrappers' public keys
-        if host in PKEY_MAPPINGS:
-            key_name = PKEY_MAPPINGS[host]
-            key_path = os.path.join(public_keys_path, key_name)
-            PKEY_MAPPINGS[host] = load_pub_key(key_path)
-        if args.mitm:
+        key_name = PKEY_MAPPINGS[host]
+        print(f'Loading pub key: {key_name}')
+        key_path = os.path.join(public_keys_path, key_name)
+        PKEY_MAPPINGS[host] = load_pub_key(key_path)
+
+    if args.mitm:
+        for host in mitm.host_list.keys():
             if host != client_ip:
                 # If the target is not a wrapper we need to one-way poison it so that only
                 #   our client forwards traffic intended for them through us, but we don't change 
@@ -253,11 +282,10 @@ def main(args):
                     mitm.one_way_poison(client_ip, host)
                 else:
                     mitm.arp_poison(client_ip, host)
-
-    if args.mitm:
         print("Targets poisoned successfully")
 
     try:
+        print("Start sniffing")
         conf.layers.filter([Ether]) # Specify which layers will be dissected by scapy. More layers increase the delay needed to process a packet
         bpf = f"ether src not {WRAPPER_MAC} && not arp" # Filter packets on the OS level to improve performance
         sniffer = AsyncSniffer(prn=proxy(client_ip, group), filter=bpf, store=False) #Use AsyncSniffer which doesn't block

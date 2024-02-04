@@ -106,6 +106,7 @@ class IPPacket:
 
     def set_dest_ip(self, new_ip):
         self.raw[16:20] = ip_cache.get(new_ip, ip_to_bytes(new_ip))
+        self.dest_ip = new_ip
 
     def get_transport_payload(self):
         return self.payload[self.data_offset:]
