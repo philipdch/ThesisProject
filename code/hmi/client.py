@@ -32,7 +32,7 @@ from pymodbus.exceptions import ModbusException
 from pymodbus.pdu import ExceptionResponse
 
 _logger = logging.getLogger(__file__)
-_logger.setLevel("DEBUG")
+_logger.setLevel("INFO")
 
 async def run_async_simple_client(args, framer=ModbusSocketFramer):
     comm = args.comm
@@ -43,7 +43,7 @@ async def run_async_simple_client(args, framer=ModbusSocketFramer):
 
     """Run async client."""
     # activate debugging
-    pymodbus_apply_logging_config("DEBUG")
+    pymodbus_apply_logging_config("INFO")
 
     print("get client")
     if comm == "tcp":
@@ -110,7 +110,6 @@ async def run_async_simple_client(args, framer=ModbusSocketFramer):
     # test client is connected
     assert client.connected
 
-    print("get and verify data")
     try:
         read_list = None
         if subcommand == "rc":
