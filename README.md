@@ -5,12 +5,13 @@
 - [Prerequisites](#prerequisites)
 - [Getting Started](#getting-started)
 - [Usage](#usage)
+- [Configuration](#configuration)
 - [Energy Consumption Measurement](#energy-consumption-measurement)
 - [Known Issues](#known-issues)
 
 ## Prerequisites
 
-The project is built as a series of Docker containers and thus requires the following to be installed on the system:
+The project is structured as a series of Docker containers,requiring the following to be installed on the host system: 
 
 1) [Docker](https://docs.docker.com/get-docker/)
 2) [Docker Compose](https://docs.docker.com/compose/install/)
@@ -25,17 +26,21 @@ To create the necessary keys and simulation environment:
 
     ./setup.sh
 
-By default, the command opens terminals for 2 PLCs, 1 HMI and their respective wrappers.\
-If you wish to change this configuration, you may add or remove additional containers from the following line in [setup.sh](setup.sh) (you should only define hmi or plc services. Their respective wrappers will start automatically):
-
-    containers=("hmi1" "plc1" "plc2")
+This script automates the environment setup by launching PLCs, HMIs, and their respective wrappers.
 
 ## Usage
-In the current stage of the project, testing may be done only manually:
 
-1) Populate the ARP cache of the HMI and PLC containers. This can be done either manually, by specifying an "ethers" file or by running the [ping.sh](code/ping.sh) which attempts to ping all the specified hosts.
+Curently the application supports both manual and automated testing:
 
-2) On the PLC containers, start the Modbus server (default is Modbus/TCP):
+### Automated 
+
+The default execution mode. All the necessary services start automatically. To send commands from an HMI run [client.sh](code/hmi/client.sh), from the terminal that opens. The script polls a number of different PLCs every second and displays the returned values. Commands can also be issued manually using [client.py](code/hmi/client.py).
+
+### Manually 
+
+Debugging the application may be done by not specifying the command to run when the containers start, which allows you to start each individual server, wrapper and client manually.
+
+1) On the PLC containers, start the Modbus server (default is Modbus/TCP):
 
         python3 plc.py [server_options]
 
@@ -45,8 +50,36 @@ In the current stage of the project, testing may be done only manually:
 
 4) Use any tool to send Modbus requests to the server, e.g.:
 
-        #Executable located in rodbus/target/debug 
-        ./rodbus-client -h 192.168.1.125:5020 rc --start 0 --quantity 5 
+        python3 client.py --host 172.16.238.120 -p 502 rc --start 0 --quantity 1 
+
+## Configuration 
+
+### PLC 
+All PLCs are started with a Modbus/UDP server which listens on port 502. The server's configuration can be modified through [docker-compose.yaml](docker-compose.yaml), where you can change the server parameters or specify an entirely different server to be used.
+
+### HMI
+
+The setup script launches terminals for all HMIs. If you wish to change this configuration, you may add or remove additional containers from the following line in [setup.sh](setup.sh):
+
+    containers=("hmi1" "hmi2" "hmi3")
+
+### Wrapper
+
+There are 7 predefined wrapper groups in [groups.json](code/wrapper/groups.json). These instruct each wrapper on where to forward packets received by its client. The default wrapper configuration is as follows:
+
+| Clients         | Forwarding Group |
+| --------------- | --------------- |
+| HMI1            | PLC1, PLC2   |
+| HMI2            | PLC3, PLC4, PLC5  |
+| HMI3            | PLC1, PLC2, PLC3, PLC4, PLC5   |
+| PLC1, PLC2      | HMI1, HMI2, HMI3   |
+| PLC3, PLC4, PLC5| HMI2, HMI3   |
+
+You may modify default groups, add new groups or set which groups the wrappers should use upon startup (defined in docker-compose.yaml). It's important to note that altering the default configuration requires hosts in the forwarding group of a device to also declare this device in their own forwarding groups if communication needs to be established between them.
+
+The wrappers additionally support dynamic configuration, meant to be used when static ARP entries cannot be configured. This is achieved by including the "mitm" argument in the wrappers' script. This will signal each wrapper to launch an ARP poisoning attack against its client and alter its ARP cache.
+
+    python3 wrapper.py --gid <group> --mitm
 
 ## Energy Consumption Measurement
 
@@ -58,8 +91,4 @@ If not, comment the following line in [wrapper.py](code/wrapper/wrapper.py):
 
 ## Known Issues
 
-1) Periodically, hosts will atempt to upate their ARP cache. Changes to an HMI's or PLC's ARP cache may allow it to bypass its wrapper and thus interfere with the operation of the system.
-
-2) Similarly, hosts may occasionally send ICMP Redirect messages informing others of the standard route the packets should follow (that we override while the wrappers are running), which may break the wrappers. 
-
-A temporary fix to both of these issues is running [entry.sh](docker/entry.sh), which issues commands to configure networking on the hosts and prevents ARP cache updates and ICMP redirects
+1) Scapy may miss packets under heavy load. This may cause the wrapper to drop ARP replies sent by other nodes, which in turn will cause its host list to be incomplete
