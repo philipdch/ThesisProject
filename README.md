@@ -92,3 +92,4 @@ If not, comment the following line in [wrapper.py](code/wrapper/wrapper.py):
 ## Known Issues
 
 1) Scapy may miss packets under heavy load. This may cause the wrapper to drop ARP replies sent by other nodes, which in turn will cause its host list to be incomplete
+2) There is currently no way to send a SIGINT to the wrapper containers in order to stop the wrapper python script. Therefore, timing and energy statistics are not saved when executing the wrappers without a terminal.

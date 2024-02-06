@@ -33,7 +33,7 @@ def plot_energy(data):
             continue
 
         duration = round(1000 * float(row[2]), 2)
-        if(duration >= 2):
+        if(duration >= 1):
             pkts.append(i)
             i = i + 1
             func_duration.append(duration)
@@ -85,7 +85,7 @@ def create_graph(data, plot_type):
     axis1.tick_params('y', colors='g')
     axis1.legend()
 
-    axis1.text(0.5, 0.95, f'Avg Processing Time: {processing_avg:.2f} ms', transform=axis1.transAxes, ha='center', va='center', color='r')
+    axis2.text(0.5, 0.95, f'Avg Processing Time: {processing_avg:.2f} ms', transform=axis2.transAxes, ha='center', va='center', color='r')
 
     axis2.plot(packets, data[2], 'bo--')
     axis2.set_xlabel("Packet ID")
