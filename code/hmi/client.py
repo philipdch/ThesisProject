@@ -12,7 +12,11 @@ The corresponding server must be started before e.g. as:
 import asyncio
 import argparse
 import logging
+import socket    
 import ast
+import os
+import time
+import csv
 
 from pymodbus.transaction import (
     ModbusAsciiFramer,
@@ -33,6 +37,12 @@ from pymodbus.pdu import ExceptionResponse
 
 _logger = logging.getLogger(__file__)
 _logger.setLevel("INFO")
+
+hostname = socket.gethostname()    
+IPAddr = socket.gethostbyname(hostname) 
+CLIENT_ID = IPAddr.split('.')[-1]
+
+requests = []
 
 async def run_async_simple_client(args, framer=ModbusSocketFramer):
     comm = args.comm
@@ -112,49 +122,78 @@ async def run_async_simple_client(args, framer=ModbusSocketFramer):
 
     try:
         read_list = None
+        start_time = 0
+        end_time = 0
         if subcommand == "rc":
             _logger.info("Reading Coils")
             start = args.start
             quantity = args.quantity
+            request_id = time.time_ns()  
+            start_time = time.perf_counter()
             result = await client.read_coils(start, quantity, slave=slave_id)
+            end_time = time.perf_counter()
             read_list = result.bits
         elif subcommand == "rdi":
             start = args.start
             quantity = args.quantity
+            request_id = time.time_ns() 
+            start_time = time.perf_counter()
             result = await client.read_discrete_inputs(start, quantity, slave=slave_id)
+            end_time = time.perf_counter()
             read_list = result.bits
         elif subcommand == "rhr":
             start = args.start
             quantity = args.quantity
+            request_id = time.time_ns() 
+            start_time = time.perf_counter()
             result = await client.read_holding_registers(start, quantity, slave=slave_id)
+            end_time = time.perf_counter()
             read_list = result.registers
         elif subcommand == "rir":
             start = args.start
             quantity = args.quantity
+            request_id = time.time_ns() 
+            start_time = time.perf_counter()
             result = await client.read_input_registers(start, quantity, slave=slave_id)
+            end_time = time.perf_counter()
             read_list = result.registers
         elif subcommand == "wc":
             index = args.index
             value = ast.literal_eval(args.value)
+            request_id = time.time_ns() 
+            start_time = time.perf_counter()
             result = await client.write_coil(index, value, slave=slave_id)
+            end_time = time.perf_counter()
         elif subcommand == "wr":
             index = args.index
             value = args.value
+            request_id = time.time_ns() 
+            start_time = time.perf_counter()
             result = await client.write_register(index, value, slave=slave_id)
+            end_time = time.perf_counter()
         elif subcommand == "wmc":
             start_address = args.start_address
             values = [ast.literal_eval(x.strip()) for x in args.values.split(',')]
+            request_id = time.time_ns() 
+            start_time = time.perf_counter()
             result = await client.write_coils(start_address, values, slave=slave_id)
+            end_time = time.perf_counter()
         elif subcommand == "wmr":
             start_address = args.start_address
             values = [int(x.strip()) for x in args.values.split(',')]
+            request_id = time.time_ns() 
+            start_time = time.perf_counter()
             result = await client.write_registers(start_address, values, slave=slave_id)
+            end_time = time.perf_counter()
         elif subcommand == "rwr":
             start = args.read_start
             write_start = args.write_start
             quantity = args.quantity
             values = [int(x.strip()) for x in args.values.split(',')]
-            result = await client.readwrite_registers(start, quantity, write_start, values, slave=slave_id)  
+            request_id = time.time_ns() 
+            start_time = time.perf_counter()
+            result = await client.readwrite_registers(start, quantity, write_start, values, slave=slave_id)
+            end_time = time.perf_counter()
             read_list = result.registers         
 
     except ModbusException as exc:  # pragma no cover
@@ -170,6 +209,8 @@ async def run_async_simple_client(args, framer=ModbusSocketFramer):
         # THIS IS NOT A PYTHON EXCEPTION, but a valid modbus message
         client.close()
 
+    elapsed = end_time - start_time if end_time > start_time else None
+    requests.append([request_id, host, subcommand, elapsed])
     if read_list:
         [print(hex(start + i) + ": " + str(read_list[i])) for i in range(len(read_list))]
 
@@ -249,3 +290,14 @@ if __name__ == "__main__":
     asyncio.run(
         run_async_simple_client(args), debug=True
     )  # pragma: no cover
+
+    filename = './performance/requests_' + CLIENT_ID + '.csv'
+    file_exists = os.path.isfile(filename)
+    
+    with open (filename,'a') as csv_file:
+        header = ['id', 'server', 'command', 'response_time']
+        writer = csv.writer(csv_file)
+        if not file_exists:
+            writer.writerow(header)
+        for row in requests:
+            writer.writerow(row)

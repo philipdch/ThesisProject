@@ -8,6 +8,7 @@ services:
     command: ["tail", "-f", "/dev/null"]
     volumes:
       - ./config/hmi1:/code/config
+      - ./code/performance/client:/code/performance
     privileged: true
     mac_address: 02:42:ac:10:ee:7a
     networks:
@@ -22,6 +23,7 @@ services:
     command: ["tail", "-f", "/dev/null"]
     volumes:
       - ./config/hmi2:/code/config
+      - ./code/performance/client:/code/performance
     privileged: true
     mac_address: 02:42:ac:10:ee:7b
     networks:
@@ -36,6 +38,7 @@ services:
     command: ["tail", "-f", "/dev/null"]
     volumes:
       - ./config/hmi3:/code/config
+      - ./code/performance/client:/code/performance
     privileged: true
     mac_address: 02:42:ac:10:ee:7c
     networks:
@@ -133,9 +136,9 @@ services:
     container_name: wrapper_hmi1
     command: ["./start.sh", "1"]
     volumes:
-      - ./code/wrapper:/code
       - ./.ssh/wrapper_hmi1:/.ssh
       - ./.ssh/common:/.ssh/common
+      - ./code/performance/wrapper:/code/performance
     privileged: true
     mac_address: 02:42:ac:10:ee:0a
     networks:
@@ -161,9 +164,9 @@ services:
     container_name: wrapper_hmi2
     command: ["./start.sh", "2"]
     volumes:
-      - ./code/wrapper:/code
       - ./.ssh/wrapper_hmi2:/.ssh
       - ./.ssh/common:/.ssh/common
+      - ./code/performance/wrapper:/code/performance
     privileged: true
     mac_address: 02:42:ac:10:ee:0b
     networks:
@@ -189,9 +192,9 @@ services:
     container_name: wrapper_hmi3
     command: ["./start.sh", "3"]
     volumes:
-      - ./code/wrapper:/code
       - ./.ssh/wrapper_hmi3:/.ssh
       - ./.ssh/common:/.ssh/common
+      - ./code/performance/wrapper:/code/performance
     privileged: true
     mac_address: 02:42:ac:10:ee:0c
     networks:
@@ -217,9 +220,9 @@ services:
     container_name: wrapper_plc1
     command: ["./start.sh", "4"]
     volumes:
-      - ./code/wrapper:/code
       - ./.ssh/wrapper_plc1:/.ssh
       - ./.ssh/common:/.ssh/common
+      - ./code/performance/wrapper:/code/performance
     privileged: true
     mac_address: 02:42:ac:10:ee:10
     networks:
@@ -245,9 +248,9 @@ services:
     container_name: wrapper_plc2
     command: ["./start.sh", "4"]
     volumes:
-      - ./code/wrapper:/code
       - ./.ssh/wrapper_plc2:/.ssh
       - ./.ssh/common:/.ssh/common
+      - ./code/performance/wrapper:/code/performance
     privileged: true
     mac_address: 02:42:ac:10:ee:11
     networks:
@@ -273,9 +276,9 @@ services:
     container_name: wrapper_plc3
     command: ["./start.sh", "6"]
     volumes:
-      - ./code/wrapper:/code
       - ./.ssh/wrapper_plc3:/.ssh
       - ./.ssh/common:/.ssh/common
+      - ./code/performance/wrapper:/code/performance
     privileged: true
     mac_address: 02:42:ac:10:ee:12
     networks:
@@ -301,9 +304,9 @@ services:
     container_name: wrapper_plc4
     command: ["./start.sh", "6"]
     volumes:
-      - ./code/wrapper:/code
       - ./.ssh/wrapper_plc4:/.ssh
       - ./.ssh/common:/.ssh/common
+      - ./code/performance/wrapper:/code/performance
     privileged: true
     mac_address: 02:42:ac:10:ee:13
     networks:
@@ -329,9 +332,9 @@ services:
     container_name: wrapper_plc5
     command: ["./start.sh", "6"]
     volumes:
-      - ./code/wrapper:/code
       - ./.ssh/wrapper_plc5:/.ssh
       - ./.ssh/common:/.ssh/common
+      - ./code/performance/wrapper:/code/performance
     privileged: true
     mac_address: 02:42:ac:10:ee:14
     networks:
