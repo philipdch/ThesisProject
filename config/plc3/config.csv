@@ -1,5 +1,5 @@
 register_type,start_address,values,comments
-co,0,"1",Pump On/Off
+co,0,"1","Pump On/Off"
 di,10001,"1,0","Running Status, Pump Overload Status"
 ir,30001,"16441,39322,17244,0,17920,2000,17563,40960","Current (32-bit), Voltage (32-bit), Pump Speed (32-bit), Pump Pressure (32-bit)"
 hr,40001,"17927,61440,17673,32768","Set Pump Speed (32-bits), Set Pump Pressure (32-bits)"
