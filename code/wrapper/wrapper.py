@@ -49,13 +49,12 @@ def load_private_key(key_path):
         print("Error: Private Key file not found")
         return None
 
-def update_timings(pkt, received_time, sent_time, exec_time):
+def update_timings(pkt, received_time, proccessing_delay):
     packet_timings = {
                     'id':len(packets),
                     'packet': pkt,
                     'received_time': received_time,
-                    'sent_time': sent_time,
-                    'func_exec_time': exec_time
+                    'processing_delay': proccessing_delay
                 }
     packets.append(packet_timings)
 
@@ -119,15 +118,11 @@ def proxy(client, group):
         start_time = time.perf_counter()
         packet.show()
 
-        if packet.haslayer('Ether') and packet['Ether'].type == 0x0800:
-            try:
-                ip_packet = IPPacket(bytearray(packet['Raw'].load))
-                print(ip_packet)
-            except ValueError as e:
-                print(e)
-                return
-        else:
-            print('Packet has no IP layer')
+        try:
+            ip_packet = IPPacket(bytearray(packet['Raw'].load))
+            print(ip_packet)
+        except ValueError as e:
+            print(e)
             return
         
         received_time = packet.time
@@ -150,15 +145,16 @@ def proxy(client, group):
                 eth_frame = Ether(dst = dest_mac, type=0x0800)
                 eth_frame = bytearray(raw(eth_frame)) + ip_packet.raw
                 l2_socket.send(eth_frame)
-                sent_time = time.time()
-                update_timings(ip_packet.raw, received_time, sent_time, None)
+                sent_time = time.perf_counter()
+                proc_delay = sent_time - start_time
+                update_timings(ip_packet.raw, received_time, proc_delay)
                 return
 
             for wrapper in group:
                 wrapper_mac = mitm.host_list.get(wrapper, None)
                 
-                # Avoid forwarding to self or to unknown destination
-                if (wrapper == WRAPPER_IP) or (not wrapper_mac):
+                # Avoid forwarding to unknown destination
+                if not wrapper_mac:
                     continue
 
                 wrapper_client = mitm.WRAPPER_MAPPINGS[wrapper]
@@ -174,8 +170,9 @@ def proxy(client, group):
                 eth_frame = bytearray(raw(eth_frame)) + ip_packet.raw
                 print(ip_packet)
                 l2_socket.send(eth_frame)
-                sent_time = time.time()
-                update_timings(ip_packet.raw, received_time, sent_time, None)
+                sent_time = time.perf_counter()
+                proc_delay = sent_time - start_time
+                update_timings(ip_packet.raw, received_time, proc_delay)
         elif ip_packet.dest_ip == client:
             print("Decrypting and forwarding to client " + client)
             # Try to decrypt packet using the PKCS#1_OAEP cipher. Decryption will either:
@@ -200,18 +197,11 @@ def proxy(client, group):
             eth_frame = Ether(dst = dest_mac, type=0x0800)
             eth_frame = bytearray(raw(eth_frame)) + ip_packet.raw
             l2_socket.send(eth_frame)
-            sent_time = time.time()
+            sent_time = time.perf_counter()
+            proc_delay = sent_time - start_time
+            update_timings(ip_packet.raw, received_time, proc_delay)
         else:
             return
-        
-        end_time = time.perf_counter()
-        execution_time = end_time - start_time # The time it took for the wrapper to execute after receiving a (valid) packet 
-        if (packets and packets[-1]['func_exec_time'] is None):
-                # If execeution time of last packet is none, the packet belongs to the list of packets forwarded to a group.
-                # Execution time is calculated and assigned to the last forwarded packet.
-                packets[-1]['func_exec_time'] = execution_time
-        else:
-            update_timings(ip_packet.raw, received_time, sent_time, execution_time)
 
     return wrapper
 
@@ -221,7 +211,9 @@ def main(args):
     client_ip = os.environ['CLIENT']
 
     # Get wrapper's group from json file
-    group = load_group(gid)
+    group = set(load_group(gid))
+    group.discard(WRAPPER_IP)
+    print(group)
 
     # Read wrapper's private key
     global PRIVATE_KEY
@@ -287,7 +279,7 @@ def main(args):
     try:
         print("Start sniffing")
         conf.layers.filter([Ether]) # Specify which layers will be dissected by scapy. More layers increase the delay needed to process a packet
-        bpf = f"ether src not {WRAPPER_MAC} && not arp" # Filter packets on the OS level to improve performance
+        bpf = f"ether proto \ip && ether src not {WRAPPER_MAC} && not arp" # Filter packets on the OS level to improve performance
         sniffer = AsyncSniffer(prn=proxy(client_ip, group), filter=bpf, store=False) #Use AsyncSniffer which doesn't block
         sniffer.start()
         sniffer.join()
