@@ -2,12 +2,17 @@
 
 ETHERS="/code/config/ethers"
 
-if [ -f $ETHERS ]; then
-    # Set static ARP cache from ethers file
-    arp -f $ETHERS
-    echo "Static ARP cache set from $ETHERS"
+if [[ "$1" == "debug" ]]; then
+    echo "Debug mode. Static ARP disabled."
+    shift
 else
-    echo "Ethers file not found."
+    if [ -f $ETHERS ]; then
+        # Set static ARP cache from ethers file
+        arp -f $ETHERS
+        echo "Static ARP cache set from $ETHERS"
+    else
+        echo "Ethers file not found."
+    fi
 fi
 
 # Enable updates to ARP cache to alow MitM

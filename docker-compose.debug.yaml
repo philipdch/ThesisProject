@@ -1,0 +1,373 @@
+version: '3.9'
+services:
+  hmi1:
+    build: 
+      context: .
+      dockerfile: ./docker/hmi/Dockerfile
+    container_name: hmi1
+    entrypoint: ["/usr/local/bin/entry.sh"]
+    command: ["tail", "-f", "/dev/null"]
+    volumes:
+      - ./code/hmi/:/code
+      - ./config/hmi1:/code/config
+      - ./code/performance/client:/code/performance
+    privileged: true
+    mac_address: 02:42:ac:10:ee:7a
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.110 
+
+  hmi2:
+    build: 
+      context: .
+      dockerfile: ./docker/hmi/Dockerfile
+    container_name: hmi2
+    entrypoint: ["/usr/local/bin/entry.sh"]
+    command: ["tail", "-f", "/dev/null"]
+    volumes:
+      - ./code/hmi/:/code
+      - ./config/hmi2:/code/config
+      - ./code/performance/client:/code/performance
+    privileged: true
+    mac_address: 02:42:ac:10:ee:7b
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.111
+
+  hmi3:
+    build: 
+      context: .
+      dockerfile: ./docker/hmi/Dockerfile
+    container_name: hmi3
+    entrypoint: ["/usr/local/bin/entry.sh"]
+    command: ["tail", "-f", "/dev/null"]
+    volumes:
+      - ./code/hmi/:/code
+      - ./config/hmi3:/code/config
+      - ./code/performance/client:/code/performance
+    privileged: true
+    mac_address: 02:42:ac:10:ee:7c
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.112
+
+  plc1:
+    build: 
+      context: .
+      dockerfile: ./docker/plc/Dockerfile
+    container_name: plc1
+    entrypoint: ["/usr/local/bin/entry.sh"]
+    command: ["python3", "plc.py", "-c", "udp", "--host", "172.16.238.120"]
+    volumes:
+      - ./code/plc:/code
+      - ./config/plc1:/code/config
+    privileged: true
+    mac_address: 02:42:ac:10:ee:70
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.120
+    
+  plc2:
+    build: 
+      context: .
+      dockerfile: ./docker/plc/Dockerfile
+    container_name: plc2
+    entrypoint: ["/usr/local/bin/entry.sh"]
+    command: ["python3", "plc.py", "-c", "udp", "--host", "172.16.238.121"]
+    volumes:
+      - ./code/plc:/code
+      - ./config/plc2:/code/config
+    privileged: true
+    mac_address: 02:42:ac:10:ee:71
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.121
+
+  plc3:
+    build: 
+      context: .
+      dockerfile: ./docker/plc/Dockerfile
+    container_name: plc3
+    entrypoint: ["/usr/local/bin/entry.sh"]
+    command: ["python3", "plc.py", "-c", "udp", "--host", "172.16.238.122"]
+    volumes:
+      - ./code/plc:/code
+      - ./config/plc3:/code/config
+    privileged: true
+    mac_address: 02:42:ac:10:ee:72
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.122
+
+  plc4:
+    build: 
+      context: .
+      dockerfile: ./docker/plc/Dockerfile
+    container_name: plc4
+    entrypoint: ["/usr/local/bin/entry.sh"]
+    command: ["python3", "plc.py", "-c", "udp", "--host", "172.16.238.123"]
+    volumes:
+      - ./code/plc:/code
+      - ./config/plc4:/code/config
+    privileged: true
+    mac_address: 02:42:ac:10:ee:73
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.123
+
+  plc5:
+    build: 
+      context: .
+      dockerfile: ./docker/plc/Dockerfile
+    container_name: plc5
+    entrypoint: ["/usr/local/bin/entry.sh"]
+    command: ["python3", "plc.py", "-c", "udp", "--host", "172.16.238.124"]
+    volumes:
+      - ./code/plc:/code
+      - ./config/plc5:/code/config
+    privileged: true
+    mac_address: 02:42:ac:10:ee:74
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.124
+
+  wrapper_hmi1:
+    build: 
+      context: .
+      dockerfile: ./docker/wrapper/Dockerfile
+    depends_on:
+      - hmi1
+      - hmi2
+      - hmi3
+      - plc1
+      - plc2
+      - plc3
+      - plc4
+      - plc5
+    container_name: wrapper_hmi1
+    command: ["tail", "-f", "/dev/null"]
+    volumes:
+      - ./code/wrapper:/code
+      - ./.ssh/wrapper_hmi1:/.ssh
+      - ./.ssh/common:/.ssh/common
+      - ./code/performance/wrapper:/code/performance
+    privileged: true
+    mac_address: 02:42:ac:10:ee:0a
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.10
+    environment:
+      CLIENT: "172.16.238.110"
+      WRAPPER-GROUP: "172.16.238.11, 172.16.238.12, 172.16.238.20, 172.16.238.21, 172.16.238.22, 172.16.238.23, 172.16.238.24"
+
+  wrapper_hmi2:
+    build: 
+      context: .
+      dockerfile: ./docker/wrapper/Dockerfile
+    depends_on:
+      - hmi1
+      - hmi2
+      - hmi3
+      - plc1
+      - plc2
+      - plc3
+      - plc4
+      - plc5
+    container_name: wrapper_hmi2
+    command: ["tail", "-f", "/dev/null"]
+    volumes:
+      - ./code/wrapper:/code
+      - ./.ssh/wrapper_hmi2:/.ssh
+      - ./.ssh/common:/.ssh/common
+      - ./code/performance/wrapper:/code/performance
+    privileged: true
+    mac_address: 02:42:ac:10:ee:0b
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.11
+    environment:
+      CLIENT: "172.16.238.111"
+      WRAPPER-GROUP: "172.16.238.10, 172.16.238.12, 172.16.238.20, 172.16.238.21, 172.16.238.22, 172.16.238.23, 172.16.238.24"
+
+  wrapper_hmi3:
+    build: 
+      context: .
+      dockerfile: ./docker/wrapper/Dockerfile
+    depends_on:
+      - hmi1
+      - hmi2
+      - hmi3
+      - plc1
+      - plc2
+      - plc3
+      - plc4
+      - plc5
+    container_name: wrapper_hmi3
+    command: ["tail", "-f", "/dev/null"]
+    volumes:
+      - ./code/wrapper:/code
+      - ./.ssh/wrapper_hmi3:/.ssh
+      - ./.ssh/common:/.ssh/common
+      - ./code/performance/wrapper:/code/performance
+    privileged: true
+    mac_address: 02:42:ac:10:ee:0c
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.12
+    environment:
+      CLIENT: "172.16.238.112"
+      WRAPPER-GROUP: "172.16.238.10, 172.16.238.11, 172.16.238.20, 172.16.238.21, 172.16.238.22, 172.16.238.23, 172.16.238.24"
+
+  wrapper_plc1:
+    build: 
+      context: .
+      dockerfile: ./docker/wrapper/Dockerfile
+    depends_on:
+      - hmi1
+      - hmi2
+      - hmi3
+      - plc1
+      - plc2
+      - plc3
+      - plc4
+      - plc5
+    container_name: wrapper_plc1
+    command: ["tail", "-f", "/dev/null"]
+    volumes:
+      - ./code/wrapper:/code
+      - ./.ssh/wrapper_plc1:/.ssh
+      - ./.ssh/common:/.ssh/common
+      - ./code/performance/wrapper:/code/performance
+    privileged: true
+    mac_address: 02:42:ac:10:ee:10
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.20
+    environment:
+      CLIENT: "172.16.238.120"
+      WRAPPER-GROUP: "172.16.238.10, 172.16.238.11, 172.16.238.12, 172.16.238.21, 172.16.238.22, 172.16.238.23, 172.16.238.24"
+
+  wrapper_plc2:
+    build: 
+      context: .
+      dockerfile: ./docker/wrapper/Dockerfile
+    depends_on:
+      - hmi1
+      - hmi2
+      - hmi3
+      - plc1
+      - plc2
+      - plc3
+      - plc4
+      - plc5
+    container_name: wrapper_plc2
+    command: ["tail", "-f", "/dev/null"]
+    volumes:
+      - ./code/wrapper:/code
+      - ./.ssh/wrapper_plc2:/.ssh
+      - ./.ssh/common:/.ssh/common
+      - ./code/performance/wrapper:/code/performance
+    privileged: true
+    mac_address: 02:42:ac:10:ee:11
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.21
+    environment:
+      CLIENT: "172.16.238.121"
+      WRAPPER-GROUP: "172.16.238.10, 172.16.238.11, 172.16.238.12, 172.16.238.20, 172.16.238.22, 172.16.238.23, 172.16.238.24"
+
+  wrapper_plc3:
+    build: 
+      context: .
+      dockerfile: ./docker/wrapper/Dockerfile
+    depends_on:
+      - hmi1
+      - hmi2
+      - hmi3
+      - plc1
+      - plc2
+      - plc3
+      - plc4
+      - plc5
+    container_name: wrapper_plc3
+    command: ["tail", "-f", "/dev/null"]
+    volumes:
+      - ./code/wrapper:/code
+      - ./.ssh/wrapper_plc3:/.ssh
+      - ./.ssh/common:/.ssh/common
+      - ./code/performance/wrapper:/code/performance
+    privileged: true
+    mac_address: 02:42:ac:10:ee:12
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.22
+    environment:
+      CLIENT: "172.16.238.122"
+      WRAPPER-GROUP: "172.16.238.10, 172.16.238.11, 172.16.238.12, 172.16.238.20, 172.16.238.21, 172.16.238.23, 172.16.238.24"
+
+  wrapper_plc4:
+    build: 
+      context: .
+      dockerfile: ./docker/wrapper/Dockerfile
+    depends_on:
+      - hmi1
+      - hmi2
+      - hmi3
+      - plc1
+      - plc2
+      - plc3
+      - plc4
+      - plc5
+    container_name: wrapper_plc4
+    command: ["tail", "-f", "/dev/null"]
+    volumes:
+      - ./code/wrapper:/code
+      - ./.ssh/wrapper_plc4:/.ssh
+      - ./.ssh/common:/.ssh/common
+      - ./code/performance/wrapper:/code/performance
+    privileged: true
+    mac_address: 02:42:ac:10:ee:13
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.23
+    environment:
+      CLIENT: "172.16.238.123"
+      WRAPPER-GROUP: "172.16.238.10, 172.16.238.11, 172.16.238.12, 172.16.238.20, 172.16.238.21, 172.16.238.22, 172.16.238.24"
+
+  wrapper_plc5:
+    build: 
+      context: .
+      dockerfile: ./docker/wrapper/Dockerfile
+    depends_on:
+      - hmi1
+      - hmi2
+      - hmi3
+      - plc1
+      - plc2
+      - plc3
+      - plc4
+      - plc5
+    container_name: wrapper_plc5
+    command: ["tail", "-f", "/dev/null"]
+    volumes:
+      - ./code/wrapper:/code
+      - ./.ssh/wrapper_plc5:/.ssh
+      - ./.ssh/common:/.ssh/common
+      - ./code/performance/wrapper:/code/performance
+    privileged: true
+    mac_address: 02:42:ac:10:ee:14
+    networks:
+      devnet:
+        ipv4_address: 172.16.238.24
+    environment:
+      CLIENT: "172.16.238.124"
+      WRAPPER-GROUP: "172.16.238.10, 172.16.238.11, 172.16.238.12, 172.16.238.20, 172.16.238.21, 172.16.238.22, 172.16.238.23"
+
+networks:
+  devnet:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.16.238.0/24
+    driver_opts:
+      com.docker.network.bridge.name: br_devnet
