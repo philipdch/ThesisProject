@@ -38,9 +38,13 @@ The default execution mode. All the necessary services start automatically. To s
 
 ### Manually 
 
-Debugging the application may be done by not specifying the command to run when the containers start, which allows you to start each individual server, wrapper and client manually.
+Debugging the application allows the user to start the individual servers, wrappers and clients manually. This makes use of [docker-compose.debug.yaml](/docker-compose.debug.yaml) instead of the regular compose file. To start the application in debug mode:
 
-1) On the PLC containers, start the Modbus server (default is Modbus/TCP):
+1) Specify the 'debug' argument in the setup script:
+
+        ./setup debug
+
+2) On the PLC containers, start the Modbus server (default is Modbus/TCP):
 
         python3 plc.py [server_options]
 
@@ -59,7 +63,7 @@ All PLCs are started with a Modbus/UDP server which listens on port 502. The ser
 
 ### HMI
 
-The setup script launches terminals for all HMIs. If you wish to change this configuration, you may add or remove additional containers from the following line in [setup.sh](setup.sh):
+The setup script launches terminals for all HMIs. If you wish to change this configuration, you may add or remove additional containers in [setup.sh](setup.sh):
 
     containers=("hmi1" "hmi2" "hmi3")
 
@@ -79,7 +83,7 @@ You may modify default groups, add new groups or set which groups the wrappers s
 
 The wrappers additionally support dynamic configuration, meant to be used when static ARP entries cannot be configured. This is achieved by including the "mitm" argument in the wrappers' script. This will signal each wrapper to launch an ARP poisoning attack against its client and alter its ARP cache.
 
-    python3 wrapper.py --gid <group> --mitm
+    python3 wrapper.py --gid <group> --mitm 1
 
 ## Energy Consumption Measurement
 
@@ -92,4 +96,4 @@ If not, comment the following line in [wrapper.py](code/wrapper/wrapper.py):
 ## Known Issues
 
 1) Scapy may miss packets under heavy load. This may cause the wrapper to drop ARP replies sent by other nodes, which in turn will cause its host list to be incomplete
-2) There is currently no way to send a SIGINT to the wrapper containers in order to stop the wrapper python script. Therefore, timing and energy statistics are not saved when executing the wrappers without a terminal.
+2) There is currently no way to send a SIGINT to the wrapper containers in order to stop the wrapper python script. Therefore, timing and energy statistics are not saved when wrappers are not executed and stopped through a terminal.

@@ -248,7 +248,7 @@ def main(args):
             result2 = mitm.persistent_discovery(client)
 
             if(result1 is None or result2 is None):
-                print("Exiting")
+                print(f"Either node {client} or its wrapper {wrapper} are not up.\nExiting...")
                 return
             mitm.host_list[wrapper] = result1
             mitm.host_list[client] = result2
